@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [debugUid, setDebugUid] = useState<string | null>(null);
   const [debugClaims, setDebugClaims] = useState<Record<string, any> | null>(null);
@@ -23,6 +24,7 @@ export default function SignupPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(false);
 
     if (!name.trim()) return setError('Please enter your name.');
     if (age === '' || Number.isNaN(age)) return setError('Please enter your age.');
@@ -81,7 +83,13 @@ export default function SignupPage() {
       }
       console.log('Profile created:', profileData);
 
-      router.push('/');
+      // Show success message before redirecting
+      setSuccess(true);
+      
+      // Wait 2 seconds then redirect to signin
+      setTimeout(() => {
+        router.push('/signin');
+      }, 2000);
     } catch (err: any) {
       let msg = err?.message || 'Failed to sign up. Please try again.';
       if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
@@ -111,6 +119,12 @@ export default function SignupPage() {
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">{error}</div>
+        )}
+
+        {success && (
+          <div className="mb-4 rounded-lg bg-green-50 text-green-700 px-4 py-3 text-sm font-medium">
+            ✓ Successfully signed up! Please log in.
+          </div>
         )}
 
         <form onSubmit={onSubmit} className="space-y-4">

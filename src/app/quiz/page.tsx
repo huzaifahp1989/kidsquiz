@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { calculateLevel } from '@/lib/utils';
 
 export default function QuizPage() {
-  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Hijrah'>('Easy');
+  const [category, setCategory] = useState<'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq' | ''>('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -23,11 +23,8 @@ export default function QuizPage() {
   const [practiceMode, setPracticeMode] = useState(false);
   const { user, refreshProfile } = useAuth();
 
-  const isHijrah = difficulty === 'Hijrah';
-  const filteredQuestions = quizzes.filter(q =>
-    isHijrah ? q.difficulty === 'Hijrah' : q.difficulty === difficulty
-  );
-  const currentQuestions = isHijrah ? filteredQuestions : filteredQuestions.slice(0, 5);
+  const filteredQuestions = quizzes.filter(q => q.category === category);
+  const currentQuestions = filteredQuestions;
   const currentQuestion = currentQuestions[currentQuestionIndex];
 
   const handleSelectAnswer = (answerIndex: number) => {
@@ -52,8 +49,8 @@ export default function QuizPage() {
     }
   };
 
-  const handleStartQuiz = (level: 'Easy' | 'Medium' | 'Hard' | 'Hijrah') => {
-    setDifficulty(level);
+  const handleStartQuiz = (cat: 'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq') => {
+    setCategory(cat);
     setQuizStarted(true);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
@@ -67,6 +64,7 @@ export default function QuizPage() {
 
   const handleResetQuiz = () => {
     setQuizStarted(false);
+    setCategory('');
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setShowResult(false);
@@ -79,6 +77,7 @@ export default function QuizPage() {
   };
 
   // Award points to the signed-in user when the quiz finishes
+  // Weekly limit: 250 points max
   useEffect(() => {
     if (!quizComplete || !user?.id || score <= 0 || hasAwarded) {
       console.log('[quiz] Skip award:', { quizComplete, userId: user?.id, score, hasAwarded });
@@ -103,24 +102,48 @@ export default function QuizPage() {
 
       if (cancelled) return;
 
-      const nextTotal = (row?.points || 0) + score;
+      // Check weekly limit (250 max)
+      const currentWeekly = row?.weeklypoints || 0;
+      const weeklyLimit = 250;
+      
+      if (currentWeekly >= weeklyLimit) {
+        setResultToast('⚠️ Weekly limit reached (250 points). Come back next week!');
+        setHasAwarded(true);
+        return;
+      }
+
+      // Calculate how many points to award (respect weekly limit)
+      const pointsToAward = Math.min(score, weeklyLimit - currentWeekly);
+      const nextTotal = (row?.points || 0) + pointsToAward;
+      const nextWeekly = currentWeekly + pointsToAward;
+      const nextMonthly = (row?.monthlypoints || 0) + pointsToAward;
 
       const { error } = await supabase
         .from('users')
         .update({
           points: nextTotal,
-          weeklypoints: (row?.weeklypoints || 0) + score,
-          monthlypoints: (row?.monthlypoints || 0) + score,
+          weeklypoints: nextWeekly,
+          monthlypoints: nextMonthly,
           level: calculateLevel(nextTotal),
         })
         .eq('uid', user.id);
 
-      console.log('[quiz] Update result:', { error, nextTotal });
+      console.log('[quiz] Update result:', { error, nextTotal, pointsToAward });
 
       if (!cancelled) {
         setHasAwarded(true);
         if (!error) {
-          setResultToast(`⭐ +${score} points!`);
+          if (pointsToAward < score) {
+            setResultToast(`⭐ +${pointsToAward} points! (Weekly limit: ${nextWeekly}/250)`);
+          } else {
+            setResultToast(`⭐ +${pointsToAward} points! (Weekly: ${nextWeekly}/250, Monthly: ${nextMonthly}/1000)`);
+          }
+          // Check for 1000 monthly points badge
+          if (nextMonthly >= 1000) {
+            setTimeout(() => {
+              setResultToast('🏆 Congratulations! You earned the 1000 Monthly Points Badge!');
+            }, 2000);
+          }
           // Refresh profile to show updated points
           await refreshProfile();
         } else {
@@ -141,64 +164,86 @@ export default function QuizPage() {
         {/* Page Title */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-islamic-dark mb-2 islamic-shadow">
-            📝 Daily Quiz
+            📝 Islamic Knowledge Quizzes
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-gray-600 mb-2">
             Test your Islamic knowledge and earn points!
           </p>
+          <div className="bg-gradient-to-r from-blue-50 to-green-50 border-2 border-islamic-blue rounded-lg p-4 mt-4">
+            <p className="text-sm font-semibold text-islamic-dark mb-1">
+              🎯 Points System: 1 point per correct answer | 10 questions per quiz = 10 points max
+            </p>
+            <p className="text-sm text-gray-700">
+              📊 Weekly Limit: 250 points | 🏆 Monthly Goal: 1000 points = Badge!
+            </p>
+            <p className="text-xs text-gray-600 mt-2">
+              Points from games, quizzes, and all activities add up to your weekly and monthly totals.
+            </p>
+          </div>
         </div>
 
         {!quizStarted ? (
           <div>
-            {/* Difficulty Selection */}
+            {/* Category Selection */}
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-islamic-dark text-center mb-6">
-                Choose Your Quiz
+                Choose a Category
               </h2>
 
               <div className="grid gap-4">
-                {/* Easy */}
+                {/* Seerah */}
                 <button
-                  onClick={() => handleStartQuiz('Easy')}
+                  onClick={() => handleStartQuiz('Seerah')}
                   className="p-6 border-4 border-green-300 rounded-xl hover:shadow-lg transition bg-green-50"
                 >
-                  <div className="text-4xl mb-2">😊</div>
-                  <h3 className="text-2xl font-bold text-green-700 mb-2">Easy</h3>
-                  <p className="text-gray-700 mb-2">For ages 5-7 years old</p>
-                  <p className="text-sm text-gray-600">10 points per correct answer</p>
+                  <div className="text-4xl mb-2">🕌</div>
+                  <h3 className="text-2xl font-bold text-green-700 mb-2">Seerah</h3>
+                  <p className="text-gray-700 mb-2">Life of Prophet Muhammad ﷺ</p>
+                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
                 </button>
 
-                {/* Medium */}
+                {/* Hadith */}
                 <button
-                  onClick={() => handleStartQuiz('Medium')}
+                  onClick={() => handleStartQuiz('Hadith')}
                   className="p-6 border-4 border-yellow-300 rounded-xl hover:shadow-lg transition bg-yellow-50"
                 >
-                  <div className="text-4xl mb-2">🙂</div>
-                  <h3 className="text-2xl font-bold text-yellow-700 mb-2">Medium</h3>
-                  <p className="text-gray-700 mb-2">For ages 8-10 years old</p>
-                  <p className="text-sm text-gray-600">15 points per correct answer</p>
+                  <div className="text-4xl mb-2">📖</div>
+                  <h3 className="text-2xl font-bold text-yellow-700 mb-2">Hadith</h3>
+                  <p className="text-gray-700 mb-2">Sayings of the Prophet ﷺ</p>
+                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
                 </button>
 
-                {/* Hard */}
+                {/* Prophets */}
                 <button
-                  onClick={() => handleStartQuiz('Hard')}
+                  onClick={() => handleStartQuiz('Prophets')}
                   className="p-6 border-4 border-purple-300 rounded-xl hover:shadow-lg transition bg-purple-50"
                 >
-                  <div className="text-4xl mb-2">🤓</div>
-                  <h3 className="text-2xl font-bold text-purple-700 mb-2">Hard</h3>
-                  <p className="text-gray-700 mb-2">For ages 11-14 years old</p>
-                  <p className="text-sm text-gray-600">20 points per correct answer</p>
+                  <div className="text-4xl mb-2">⭐</div>
+                  <h3 className="text-2xl font-bold text-purple-700 mb-2">Prophets / Ambiya</h3>
+                  <p className="text-gray-700 mb-2">Stories of the Prophets</p>
+                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
                 </button>
 
-                {/* Hijrah Special */}
+                {/* Quran Stories */}
                 <button
-                  onClick={() => handleStartQuiz('Hijrah')}
+                  onClick={() => handleStartQuiz('Quran Stories')}
                   className="p-6 border-4 border-blue-300 rounded-xl hover:shadow-lg transition bg-blue-50"
                 >
-                  <div className="text-4xl mb-2">🕌</div>
-                  <h3 className="text-2xl font-bold text-blue-700 mb-2">Hijrah</h3>
-                  <p className="text-gray-700 mb-2">10 questions on the Hijrah journey</p>
-                  <p className="text-sm text-gray-600">20 points per correct answer</p>
+                  <div className="text-4xl mb-2">📕</div>
+                  <h3 className="text-2xl font-bold text-blue-700 mb-2">Qur'an Stories</h3>
+                  <p className="text-gray-700 mb-2">Stories from the Qur'an</p>
+                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                </button>
+
+                {/* Akhlaq */}
+                <button
+                  onClick={() => handleStartQuiz('Akhlaq')}
+                  className="p-6 border-4 border-pink-300 rounded-xl hover:shadow-lg transition bg-pink-50"
+                >
+                  <div className="text-4xl mb-2">💖</div>
+                  <h3 className="text-2xl font-bold text-pink-700 mb-2">Akhlaq</h3>
+                  <p className="text-gray-700 mb-2">Islamic Manners & Character</p>
+                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
                 </button>
               </div>
 
@@ -206,11 +251,11 @@ export default function QuizPage() {
               <div className="bg-blue-50 border-l-4 border-islamic-blue p-6 rounded-lg mt-8">
                 <h4 className="font-bold text-islamic-blue mb-3">ℹ️ How it Works</h4>
                 <ul className="space-y-2 text-gray-700">
-                  <li>✓ Complete all questions in your chosen quiz (5 for standard levels, 10 for Hijrah)</li>
-                  <li>✓ Each correct answer earns you points based on the quiz type</li>
-                  <li>✓ You can take one quiz per day</li>
-                  <li>✓ Bonus points for completing the daily quiz!</li>
+                  <li>✓ Each quiz has 10 questions from the selected category</li>
+                  <li>✓ Each correct answer earns you 1 point (10 points maximum per quiz)</li>
+                  <li>✓ You can take multiple quizzes up to the weekly limit of 250 points</li>
                   <li>✓ Wrong answers show you the correct answer with explanation</li>
+                  <li>✓ Reach 1000 monthly points to earn a special badge! 🏆</li>
                 </ul>
               </div>
             </div>
@@ -242,7 +287,7 @@ export default function QuizPage() {
               <h3 className="font-bold text-islamic-dark mb-4">Results:</h3>
               <div className="space-y-2">
                 <p className="text-gray-700">
-                  <strong>Quiz:</strong> {difficulty}
+                  <strong>Category:</strong> {category}
                 </p>
                 <p className="text-gray-700">
                   <strong>Questions:</strong> {answeredCount} / {currentQuestions.length}
@@ -257,11 +302,11 @@ export default function QuizPage() {
             <div className="bg-purple-50 border-l-4 border-purple-500 p-6 rounded-lg">
               <h4 className="font-bold text-purple-700 mb-2">👏 Excellent Work!</h4>
               <p className="text-gray-700 mb-4">
-                You've completed the quiz. Your points have been added to your total score!
+                You've completed the {category} quiz. Your points have been added to your total score!
               </p>
-              {score > 40 && (
+              {score >= 8 && (
                 <p className="text-gray-700 font-semibold text-yellow-600">
-                  🌟 You earned a BONUS! Come back tomorrow for the daily quiz!
+                  🌟 Great score! Keep learning and earning points towards your 1000 monthly badge!
                 </p>
               )}
             </div>

@@ -89,14 +89,6 @@ export default function HadithPage() {
               <p className="text-sm mt-4 opacity-90">Source: {selectedHadith.source}</p>
             </div>
 
-            {/* Arabic Text */}
-            {selectedHadith.arabic && (
-              <div className="bg-gray-50 border-l-4 border-islamic-green p-6 rounded-lg">
-                <h3 className="font-bold text-islamic-green mb-3">Arabic</h3>
-                <p className="text-right text-xl font-arabic">{selectedHadith.arabic}</p>
-              </div>
-            )}
-
             {/* Meaning */}
             <div className="bg-blue-50 border-l-4 border-islamic-blue p-6 rounded-lg">
               <h3 className="font-bold text-islamic-blue mb-3 text-lg">📖 What it Means</h3>

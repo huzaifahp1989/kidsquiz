@@ -9,29 +9,38 @@ type Entry = { uid: string; name: string; level: string; points: number; weeklyP
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<'weekly' | 'monthly'>('weekly');
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const { profile } = useAuth();
 
+  const loadLeaderboard = async () => {
+    const orderField = activeTab === 'weekly' ? 'weeklypoints' : 'monthlypoints';
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order(orderField, { ascending: false, nullsFirst: false })
+      .limit(50);
+    if (!error && data) {
+      const list: Entry[] = data.map((row: any) => ({
+        uid: row.uid,
+        name: row.name ?? 'Learner',
+        level: row.level ?? 'Beginner',
+        points: row.points ?? 0,
+        weeklyPoints: row.weeklypoints ?? row.points ?? 0,
+        monthlyPoints: row.monthlypoints ?? row.points ?? 0,
+      }));
+      setEntries(list);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      const orderField = activeTab === 'weekly' ? 'weeklypoints' : 'monthlypoints';
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order(orderField, { ascending: false, nullsFirst: false })
-        .limit(50);
-      if (!error && data) {
-        const list: Entry[] = data.map((row: any) => ({
-          uid: row.uid,
-          name: row.name ?? 'Learner',
-          level: row.level ?? 'Beginner',
-          points: row.points ?? 0,
-          weeklyPoints: row.weeklypoints ?? row.points ?? 0,
-          monthlyPoints: row.monthlypoints ?? row.points ?? 0,
-        }));
-        setEntries(list);
-      }
-    })();
+    loadLeaderboard();
   }, [activeTab]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadLeaderboard();
+    setRefreshing(false);
+  };
 
   const leaderboardData = useMemo(() => {
     const field = activeTab === 'weekly' ? 'weeklyPoints' : 'monthlyPoints';
@@ -74,7 +83,17 @@ export default function LeaderboardPage() {
           >
             📅 Monthly
           </button>
-          
+          <button
+            onClick={handleRefresh}
+            className={`px-6 py-3 rounded-lg font-bold text-lg transition ${
+              refreshing
+                ? 'bg-gray-400 text-white'
+                : 'bg-green-200 text-green-700 hover:bg-green-300'
+            }`}
+            disabled={refreshing}
+          >
+            {refreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+          </button>
         </div>
 
         {/* Leaderboard Content */}

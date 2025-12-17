@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -23,6 +24,14 @@ export default function ProfilePage() {
   }, [profile]);
 
   const canEdit = useMemo(() => !!user?.id, [user?.id]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshProfile();
+    setRefreshing(false);
+    setMessage('Profile refreshed!');
+    setTimeout(() => setMessage(null), 2000);
+  };
 
   const createIfMissing = async () => {
     if (!user?.id) return;
@@ -169,6 +178,15 @@ user?.email ??
           </div>
 
           <div className="pt-4">
+            <Button 
+              type="button" 
+              disabled={refreshing}
+              onClick={handleRefresh}
+              variant="secondary"
+              className="w-full mb-3"
+            >
+              {refreshing ? '🔄 Refreshing...' : '🔄 Refresh Stats'}
+            </Button>
             <Button type="submit" disabled={!canEdit || saving} className="w-full">
               {saving ? 'Saving…' : 'Save Changes'}
             </Button>

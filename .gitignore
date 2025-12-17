@@ -1,0 +1,13 @@
+.env.local
+node_modules/
+.next/
+out/
+build/
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.eslintcache

@@ -1,4 +1,4 @@
--- Reset All Users and Add Daily Game Limit System
+--- Reset All Users and Add Daily Game Limit System
 
 -- Add new columns to users table for badge system and daily game tracking
 ALTER TABLE public.users

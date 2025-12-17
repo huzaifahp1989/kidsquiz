@@ -12,6 +12,9 @@ type KidProfile = {
   points: number;
   weeklyPoints?: number;
   monthlyPoints?: number;
+  badges?: number;
+  dailyGamesPlayed?: number;
+  gamesRemaining?: number;
   level: string;
 };
 
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
       } else if (data) {
         console.log('Profile raw data:', data);
+        const dailyGamesPlayed = data.daily_games_played || 0;
         const profile: KidProfile = {
           uid: data.uid,
           role: data.role,
@@ -110,6 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           points: data.points || 0,
           weeklyPoints: data.weeklypoints || 0,
           monthlyPoints: data.monthlypoints || 0,
+          badges: data.badges || 0,
+          dailyGamesPlayed: dailyGamesPlayed,
+          gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
           level: data.level,
         };
         console.log('Profile mapped:', profile);
@@ -137,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Real-time update received:', payload);
         const newRow = payload.new ?? payload.old;
         if (newRow) {
+          const dailyGamesPlayed = newRow.daily_games_played || 0;
           const updatedProfile: KidProfile = {
             uid: newRow.uid,
             role: newRow.role,
@@ -146,6 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             points: newRow.points || 0,
             weeklyPoints: newRow.weeklypoints || 0,
             monthlyPoints: newRow.monthlypoints || 0,
+            badges: newRow.badges || 0,
+            dailyGamesPlayed: dailyGamesPlayed,
+            gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
             level: newRow.level,
           };
           console.log('Updated profile from real-time:', updatedProfile);
@@ -172,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error('Profile refresh error:', error.message);
     } else if (data) {
+      const dailyGamesPlayed = data.daily_games_played || 0;
       const profile: KidProfile = {
         uid: data.uid,
         role: data.role,
@@ -181,6 +193,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         points: data.points || 0,
         weeklyPoints: data.weeklypoints || 0,
         monthlyPoints: data.monthlypoints || 0,
+        badges: data.badges || 0,
+        dailyGamesPlayed: dailyGamesPlayed,
+        gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
         level: data.level,
       };
       console.log('Profile refreshed:', profile);

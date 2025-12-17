@@ -28,6 +28,11 @@ export default function QuizPage() {
   const currentQuestion = currentQuestions[currentQuestionIndex];
 
   const handleSelectAnswer = (answerIndex: number) => {
+    if ((user?.profile?.gamesRemaining ?? 0) <= 0 && !quizStarted) {
+      setResultToast('⚠️ Daily limit reached (3 games). Come back tomorrow!');
+      return;
+    }
+    
     setSelectedAnswer(answerIndex);
     setShowResult(true);
     setShowExplanation(true);
@@ -77,7 +82,8 @@ export default function QuizPage() {
   };
 
   // Award points to the signed-in user when the quiz finishes
-  // Weekly limit: 250 points max
+  // Check daily game limit (3 max)
+  // Award badges every 250 points
   useEffect(() => {
     if (!quizComplete || !user?.id || score <= 0 || hasAwarded) {
       console.log('[quiz] Skip award:', { quizComplete, userId: user?.id, score, hasAwarded });
@@ -88,68 +94,44 @@ export default function QuizPage() {
     (async () => {
       console.log('[quiz] Awarding points for user:', user.id, 'score:', score);
       
-      const { data: row, error: readErr } = await supabase
-        .from('users')
-        .select('points,weeklypoints,monthlypoints')
-        .eq('uid', user.id)
-        .maybeSingle();
+      // Use the database function to add points with limits
+      const { data, error } = await supabase
+        .rpc('add_points_with_limits', {
+          uid: user.id,
+          points_to_add: score,
+        });
 
-      if (readErr || !row) {
-        console.error('[quiz] read failed:', readErr);
-      }
-
-      console.log('[quiz] Current row:', row);
+      console.log('[quiz] Database response:', { data, error });
 
       if (cancelled) return;
 
-      // Check weekly limit (250 max)
-      const currentWeekly = row?.weeklypoints || 0;
-      const weeklyLimit = 250;
+      setHasAwarded(true);
       
-      if (currentWeekly >= weeklyLimit) {
-        setResultToast('⚠️ Weekly limit reached (250 points). Come back next week!');
-        setHasAwarded(true);
-        return;
-      }
+      if (error) {
+        console.error('[quiz] RPC failed:', error);
+        setResultToast('⚠️ Could not award points. Try again.');
+      } else if (data && !data.success) {
+        // Daily or weekly limit reached
+        setResultToast(`⚠️ ${data.reason}`);
+      } else if (data && data.success) {
+        const pointsAwarded = data.points_awarded || 0;
+        const gamesRemaining = data.games_remaining || 0;
+        const badgesEarned = data.badges_earned || 0;
 
-      // Calculate how many points to award (respect weekly limit)
-      const pointsToAward = Math.min(score, weeklyLimit - currentWeekly);
-      const nextTotal = (row?.points || 0) + pointsToAward;
-      const nextWeekly = currentWeekly + pointsToAward;
-      const nextMonthly = (row?.monthlypoints || 0) + pointsToAward;
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          points: nextTotal,
-          weeklypoints: nextWeekly,
-          monthlypoints: nextMonthly,
-          level: calculateLevel(nextTotal),
-        })
-        .eq('uid', user.id);
-
-      console.log('[quiz] Update result:', { error, nextTotal, pointsToAward });
-
-      if (!cancelled) {
-        setHasAwarded(true);
-        if (!error) {
-          if (pointsToAward < score) {
-            setResultToast(`⭐ +${pointsToAward} points! (Weekly limit: ${nextWeekly}/250)`);
-          } else {
-            setResultToast(`⭐ +${pointsToAward} points! (Weekly: ${nextWeekly}/250, Monthly: ${nextMonthly}/1000)`);
-          }
-          // Check for 1000 monthly points badge
-          if (nextMonthly >= 1000) {
-            setTimeout(() => {
-              setResultToast('🏆 Congratulations! You earned the 1000 Monthly Points Badge!');
-            }, 2000);
-          }
-          // Refresh profile to show updated points
-          await refreshProfile();
-        } else {
-          console.error('[quiz] update failed:', error);
-          setResultToast('⚠️ Sync failed');
+        // Build toast message
+        let toastMsg = `⭐ +${pointsAwarded} points!`;
+        if (gamesRemaining >= 0) {
+          toastMsg += ` (${gamesRemaining} games left today)`;
         }
+        
+        if (badgesEarned > 0) {
+          toastMsg += ` 🏆 ${badgesEarned} badge(s)!`;
+        }
+
+        setResultToast(toastMsg);
+        
+        // Refresh profile to show updated points and badges
+        await refreshProfile();
       }
     })();
 
@@ -169,21 +151,53 @@ export default function QuizPage() {
           <p className="text-lg text-gray-600 mb-2">
             Test your Islamic knowledge and earn points!
           </p>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+              <div className="text-2xl font-bold text-blue-600">{user?.profile?.badges || 0}</div>
+              <div className="text-xs text-blue-700 font-semibold">🏆 Badges</div>
+              <div className="text-xs text-gray-600">(1 per 250 pts)</div>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
+              <div className="text-2xl font-bold text-green-600">{user?.profile?.gamesRemaining ?? 3}</div>
+              <div className="text-xs text-green-700 font-semibold">🎮 Games Left</div>
+              <div className="text-xs text-gray-600">Today (3/day)</div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-purple-600">{user?.profile?.points || 0}</div>
+              <div className="text-xs text-purple-700 font-semibold">⭐ Total Points</div>
+              <div className="text-xs text-gray-600">All-time</div>
+            </div>
+          </div>
           <div className="bg-gradient-to-r from-blue-50 to-green-50 border-2 border-islamic-blue rounded-lg p-4 mt-4">
             <p className="text-sm font-semibold text-islamic-dark mb-1">
               🎯 Points System: 1 point per correct answer | 10 questions per quiz = 10 points max
             </p>
             <p className="text-sm text-gray-700">
-              📊 Weekly Limit: 250 points | 🏆 Monthly Goal: 1000 points = Badge!
+              🎮 Daily Limit: 3 quizzes per day (resets at midnight)
             </p>
             <p className="text-xs text-gray-600 mt-2">
-              Points from games, quizzes, and all activities add up to your weekly and monthly totals.
+              🏆 Earn 1 badge every 250 points! Weekly 250pt limit applies.
             </p>
           </div>
         </div>
 
         {!quizStarted ? (
           <div>
+            {/* Daily Limit Warning */}
+            {(user?.profile?.gamesRemaining ?? 3) <= 0 && (
+              <div className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-400 rounded-lg p-4">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-orange-700">⏸️ Daily Limit Reached!</p>
+                  <p className="text-sm text-gray-700 mt-2">
+                    You've played 3 games today. Come back tomorrow at midnight to play more games and earn points!
+                  </p>
+                  <p className="text-xs text-gray-600 mt-2">
+                    💡 Tip: Each quiz gives you 1 point per correct answer (max 10 points/quiz)
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Category Selection */}
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-islamic-dark text-center mb-6">

@@ -162,18 +162,22 @@ user?.email ??
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-4 gap-4 pt-2">
             <div className="text-center rounded-lg bg-blue-50 p-3">
               <div className="text-xs text-gray-600">Points</div>
               <div className="text-xl font-bold text-islamic-blue">{profile?.points ?? 0}</div>
             </div>
             <div className="text-center rounded-lg bg-green-50 p-3">
               <div className="text-xs text-gray-600">Weekly</div>
-              <div className="text-xl font-bold text-islamic-green">{profile?.weeklyPoints ?? 0}</div>
+              <div className="text-xl font-bold text-islamic-green">{profile?.weeklyPoints ?? 0}/250</div>
             </div>
             <div className="text-center rounded-lg bg-purple-50 p-3">
-              <div className="text-xs text-gray-600">Monthly</div>
-              <div className="text-xl font-bold text-purple-600">{profile?.monthlyPoints ?? 0}</div>
+              <div className="text-xs text-gray-600">Games Left</div>
+              <div className="text-xl font-bold text-purple-600">{profile?.gamesRemaining ?? 3}/3</div>
+            </div>
+            <div className="text-center rounded-lg bg-yellow-50 p-3">
+              <div className="text-xs text-gray-600">Badges</div>
+              <div className="text-xl font-bold text-yellow-600">🏆 {profile?.badges ?? 0}</div>
             </div>
           </div>
 

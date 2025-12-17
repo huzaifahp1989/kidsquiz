@@ -21,6 +21,7 @@ export default function QuizPage() {
   const [resultToast, setResultToast] = useState<string | null>(null);
   const [hasAwarded, setHasAwarded] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
+  const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
   const { user, refreshProfile } = useAuth();
 
   const filteredQuestions = quizzes.filter(q => q.category === category);
@@ -84,6 +85,29 @@ export default function QuizPage() {
   // Award points to the signed-in user when the quiz finishes
   // Check daily game limit (3 max)
   // Award badges every 250 points
+  // Load completed quizzes for this user
+  useEffect(() => {
+    const loadCompletedQuizzes = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('quiz_progress')
+          .select('category')
+          .eq('uid', user.id);
+        
+        if (error) {
+          console.error('Error loading completed quizzes:', error);
+        } else {
+          setCompletedQuizzes(data?.map(q => q.category) || []);
+        }
+      } catch (err) {
+        console.error('Error fetching quiz_progress:', err);
+      }
+    };
+
+    loadCompletedQuizzes();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!quizComplete || !user?.id || score <= 0 || hasAwarded) {
       console.log('[quiz] Skip award:', { quizComplete, userId: user?.id, score, hasAwarded });
@@ -129,6 +153,21 @@ export default function QuizPage() {
         }
 
         setResultToast(toastMsg);
+        
+        // Mark quiz as completed to prevent replay
+        const { error: markError } = await supabase
+          .rpc('mark_quiz_completed', {
+            uid: user.id,
+            category: category,
+            score_val: score,
+          });
+
+        if (markError) {
+          console.error('[quiz] Error marking completion:', markError);
+        } else {
+          // Update the completed quizzes list
+          setCompletedQuizzes(prev => [...new Set([...prev, category])]);
+        }
         
         // Refresh profile to show updated points and badges
         await refreshProfile();
@@ -208,56 +247,131 @@ export default function QuizPage() {
                 {/* Seerah */}
                 <button
                   onClick={() => handleStartQuiz('Seerah')}
-                  className="p-6 border-4 border-green-300 rounded-xl hover:shadow-lg transition bg-green-50"
+                  disabled={completedQuizzes.includes('Seerah')}
+                  className={`p-6 border-4 border-green-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Seerah')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-green-50 hover:bg-green-100'
+                  }`}
                 >
-                  <div className="text-4xl mb-2">🕌</div>
-                  <h3 className="text-2xl font-bold text-green-700 mb-2">Seerah</h3>
-                  <p className="text-gray-700 mb-2">Life of Prophet Muhammad ﷺ</p>
-                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">🕌</div>
+                      <h3 className="text-2xl font-bold text-green-700 mb-2">Seerah</h3>
+                      <p className="text-gray-700 mb-2">Life of Prophet Muhammad ﷺ</p>
+                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Seerah') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
 
                 {/* Hadith */}
                 <button
                   onClick={() => handleStartQuiz('Hadith')}
-                  className="p-6 border-4 border-yellow-300 rounded-xl hover:shadow-lg transition bg-yellow-50"
+                  disabled={completedQuizzes.includes('Hadith')}
+                  className={`p-6 border-4 border-yellow-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Hadith')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-yellow-50 hover:bg-yellow-100'
+                  }`}
                 >
-                  <div className="text-4xl mb-2">📖</div>
-                  <h3 className="text-2xl font-bold text-yellow-700 mb-2">Hadith</h3>
-                  <p className="text-gray-700 mb-2">Sayings of the Prophet ﷺ</p>
-                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">📖</div>
+                      <h3 className="text-2xl font-bold text-yellow-700 mb-2">Hadith</h3>
+                      <p className="text-gray-700 mb-2">Sayings of the Prophet ﷺ</p>
+                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Hadith') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
 
                 {/* Prophets */}
                 <button
                   onClick={() => handleStartQuiz('Prophets')}
-                  className="p-6 border-4 border-purple-300 rounded-xl hover:shadow-lg transition bg-purple-50"
+                  disabled={completedQuizzes.includes('Prophets')}
+                  className={`p-6 border-4 border-purple-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Prophets')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-purple-50 hover:bg-purple-100'
+                  }`}
                 >
-                  <div className="text-4xl mb-2">⭐</div>
-                  <h3 className="text-2xl font-bold text-purple-700 mb-2">Prophets / Ambiya</h3>
-                  <p className="text-gray-700 mb-2">Stories of the Prophets</p>
-                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">⭐</div>
+                      <h3 className="text-2xl font-bold text-purple-700 mb-2">Prophets / Ambiya</h3>
+                      <p className="text-gray-700 mb-2">Stories of the Prophets</p>
+                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Prophets') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
 
                 {/* Quran Stories */}
                 <button
                   onClick={() => handleStartQuiz('Quran Stories')}
-                  className="p-6 border-4 border-blue-300 rounded-xl hover:shadow-lg transition bg-blue-50"
+                  disabled={completedQuizzes.includes('Quran Stories')}
+                  className={`p-6 border-4 border-blue-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Quran Stories')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-blue-50 hover:bg-blue-100'
+                  }`}
                 >
-                  <div className="text-4xl mb-2">📕</div>
-                  <h3 className="text-2xl font-bold text-blue-700 mb-2">Qur'an Stories</h3>
-                  <p className="text-gray-700 mb-2">Stories from the Qur'an</p>
-                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">📕</div>
+                      <h3 className="text-2xl font-bold text-blue-700 mb-2">Qur'an Stories</h3>
+                      <p className="text-gray-700 mb-2">Stories from the Qur'an</p>
+                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Quran Stories') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
 
                 {/* Akhlaq */}
                 <button
                   onClick={() => handleStartQuiz('Akhlaq')}
-                  className="p-6 border-4 border-pink-300 rounded-xl hover:shadow-lg transition bg-pink-50"
+                  disabled={completedQuizzes.includes('Akhlaq')}
+                  className={`p-6 border-4 border-pink-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Akhlaq')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-pink-50 hover:bg-pink-100'
+                  }`}
                 >
-                  <div className="text-4xl mb-2">💖</div>
-                  <h3 className="text-2xl font-bold text-pink-700 mb-2">Akhlaq</h3>
-                  <p className="text-gray-700 mb-2">Islamic Manners & Character</p>
-                  <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">💖</div>
+                      <h3 className="text-2xl font-bold text-pink-700 mb-2">Akhlaq</h3>
+                      <p className="text-gray-700 mb-2">Islamic Manners & Character</p>
+                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Akhlaq') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
               </div>
 
@@ -269,6 +383,7 @@ export default function QuizPage() {
                   <li>✓ Each correct answer earns you 1 point (10 points maximum per quiz)</li>
                   <li>✓ You can take multiple quizzes up to the weekly limit of 250 points</li>
                   <li>✓ Wrong answers show you the correct answer with explanation</li>
+                  <li>✓ Each quiz can only be completed ONCE to prevent cheating 🛡️</li>
                   <li>✓ Reach 1000 monthly points to earn a special badge! 🏆</li>
                 </ul>
               </div>

@@ -1,10 +1,7 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getAnalytics, isSupported } from 'firebase/analytics';
+// Firebase configuration (not currently used - using Supabase instead)
+// This file is kept for reference only. All backend services are handled by Supabase.
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -13,23 +10,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase only if it hasn't been initialized
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Firebase is not initialized as we're using Supabase for all backend services:
+// - Authentication: Supabase Auth
+// - Database: Supabase PostgreSQL
+// - Storage: Supabase Storage (if needed)
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-
-// Analytics is only available in the browser and when supported
-export const analyticsPromise = (async () => {
-  if (typeof window === 'undefined') return undefined;
-  try {
-    const supported = await isSupported();
-    if (!supported) return undefined;
-    return getAnalytics(app);
-  } catch {
-    return undefined;
-  }
-})();
-
-export default app;
+export default null;

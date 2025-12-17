@@ -190,12 +190,12 @@ export default function RewardsPage() {
                     <div
                       className="bg-islamic-blue h-full transition-all"
                       style={{
-                        width: `${(reward.progress / reward.total) * 100}%`,
+                        width: `${reward.progress && reward.total ? (reward.progress / reward.total) * 100 : 0}%`,
                       }}
                     ></div>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {reward.progress}/{reward.total}
+                    {reward.progress ?? 0}/{reward.total ?? 0}
                   </p>
                 </div>
               )}

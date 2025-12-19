@@ -53,10 +53,10 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6">
-        <h1 className="text-2xl font-bold text-center mb-2">Welcome Back</h1>
-        <p className="text-center text-gray-600 mb-6">Sign in to continue learning</p>
+    <div className="min-h-[70vh] flex items-center justify-center px-4 sm:px-6 py-8">
+      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6 sm:p-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2">Welcome Back</h1>
+        <p className="text-center text-gray-600 mb-6 text-sm sm:text-base">Sign in to continue learning</p>
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">{error}</div>

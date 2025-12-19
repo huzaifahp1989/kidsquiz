@@ -112,10 +112,10 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6">
-        <h1 className="text-2xl font-bold text-center mb-2">Create Your Account</h1>
-        <p className="text-center text-gray-600 mb-6">For kids ages 5–14</p>
+    <div className="min-h-[70vh] flex items-center justify-center px-4 sm:px-6 py-8">
+      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6 sm:p-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2">Create Your Account</h1>
+        <p className="text-center text-gray-600 mb-6 text-sm sm:text-base">For kids ages 5–14</p>
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">{error}</div>

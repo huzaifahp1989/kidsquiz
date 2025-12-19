@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
@@ -67,6 +67,14 @@ interface GameSession {
   wordSearch?: WordSearchData;
   conceptualPrompt?: Task;
 }
+
+type CompletionSummary = {
+  gameTitle: string;
+  gameId: GameId;
+  pointsEarned: number;
+  difficulty: Difficulty;
+  tasksPlayed: number;
+};
 
 const gameCatalog: { id: GameId; title: string; description: string; icon: string }[] = [
   {
@@ -169,7 +177,6 @@ const placeWordsOnGrid = (
     config.maxSize,
   );
   const grid = Array.from({ length: gridSize }, () => Array.from({ length: gridSize }, () => ''));
-  const words = pickMany(config.wordPool, config.count);
   const placements: WordPlacement[] = [];
 
   const tryPlace = (word: string) => {
@@ -213,7 +220,15 @@ const placeWordsOnGrid = (
     return false;
   };
 
-  words.forEach(w => tryPlace(w));
+  const targets: string[] = [];
+  const shuffledPool = shuffle(config.wordPool);
+  const desiredCount = Math.min(config.count, shuffledPool.length);
+  for (const word of shuffledPool) {
+    if (targets.length >= desiredCount) break;
+    if (tryPlace(word)) {
+      targets.push(word);
+    }
+  }
 
   for (let r = 0; r < gridSize; r += 1) {
     for (let c = 0; c < gridSize; c += 1) {
@@ -223,7 +238,7 @@ const placeWordsOnGrid = (
     }
   }
 
-  return { grid, placements, targets: words };
+  return { grid, placements, targets };
 };
 
 const buildHadithMatchTask = (difficulty: Difficulty): Task => {
@@ -459,6 +474,7 @@ export default function GamesPage() {
   const [dragHover, setDragHover] = useState<[number, number] | null>(null);
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({});
   const [points, setPoints] = useState(0);
+  const pointsRef = useRef(0);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [correctStreak, setCorrectStreak] = useState(0);
   const [wrongStreak, setWrongStreak] = useState(0);
@@ -468,6 +484,15 @@ export default function GamesPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [pointsSaved, setPointsSaved] = useState(false);
   const [devMode, setDevMode] = useState(false);
+  const [completion, setCompletion] = useState<CompletionSummary | null>(null);
+
+  const applyPointGain = (totalEarned: number) => {
+    setPoints(prev => {
+      const next = prev + totalEarned;
+      pointsRef.current = next;
+      return next;
+    });
+  };
 
   const weekKey = useMemo(() => weeklySeed(), []);
   useEffect(() => {
@@ -481,7 +506,7 @@ export default function GamesPage() {
 
   const currentTask = session?.tasks[taskIndex];
 
-  const resetState = () => {
+  const resetState = (opts?: { keepBadge?: boolean; keepCompletion?: boolean }) => {
     setTaskIndex(0);
     setSelectedOption(null);
     setMatchAnswers({});
@@ -492,11 +517,15 @@ export default function GamesPage() {
     setDragHover(null);
     setDragHighlight({});
     setPoints(0);
+    pointsRef.current = 0;
     setFeedback(null);
     setCorrectStreak(0);
     setWrongStreak(0);
     setComboActive(false);
-    setBadgeUnlocked(false);
+    setPointsSaved(false);
+    setToast(null);
+    if (!opts?.keepBadge) setBadgeUnlocked(false);
+    if (!opts?.keepCompletion) setCompletion(null);
   };
 
   const startGame = (gameId: GameId) => {
@@ -545,12 +574,12 @@ export default function GamesPage() {
     const combo = projectedStreak >= 5;
     const totalEarned = combo ? base * 2 : base;
     setComboActive(combo);
-    setPoints(prev => prev + totalEarned);
     setLoading(true);
 
     const rpcName = 'add_points';
 
     const handleSuccess = () => {
+      applyPointGain(totalEarned);
       setToast(`⭐ +${totalEarned} points${combo ? ' (2x combo!)' : ''}${devMode ? ' [Dev Mode]' : ''}`);
       setPointsSaved(true);
       setTimeout(() => setToast(null), 2500);
@@ -605,18 +634,28 @@ export default function GamesPage() {
   };
 
   const finishGame = async () => {
-    if (!user?.id || !selectedGameId) return;
+    if (!user?.id || !selectedGameId || !session) return;
+    const finalPoints = pointsRef.current;
+    setCompletion({
+      gameTitle: session.title,
+      gameId: session.id,
+      pointsEarned: finalPoints,
+      difficulty,
+      tasksPlayed: session.tasks.length,
+    });
+    setBadgeUnlocked(true);
     try {
-      // Mark completion for weekly mastery tracking (non-blocking)
       await supabase.rpc('mark_game_completed', {
         uid: user.id,
         game_id: `${selectedGameId}-${weekKey}`,
-        score_val: points,
+        score_val: finalPoints,
       });
     } catch (err) {
       console.warn('mark_game_completed failed', err);
     }
-    setBadgeUnlocked(true);
+    setSelectedGameId(null);
+    setSession(null);
+    resetState({ keepBadge: true, keepCompletion: true });
   };
 
   const evaluateMcq = async () => {
@@ -628,7 +667,7 @@ export default function GamesPage() {
     }
     adjustDifficulty(correct);
     setFeedback(correct ? '🎉 Correct!' : 'Not quite. Keep going!');
-    advanceTask();
+    await advanceTask();
   };
 
   const evaluateMatch = async () => {
@@ -646,7 +685,7 @@ export default function GamesPage() {
     }
     adjustDifficulty(correct);
     setFeedback(correct ? 'Matched perfectly!' : 'Some matches need review.');
-    advanceTask();
+    await advanceTask();
   };
 
   const evaluateTimeline = async () => {
@@ -664,7 +703,7 @@ export default function GamesPage() {
     }
     adjustDifficulty(correct);
     setFeedback(correct ? 'Timeline locked correctly!' : 'Order needs a tweak.');
-    advanceTask();
+    await advanceTask();
   };
 
   const evaluateWordSearch = async () => {
@@ -678,7 +717,7 @@ export default function GamesPage() {
     await awardPoints(4, projectedStreak);
     adjustDifficulty(true);
     setFeedback('Great search! Ready for the follow-up.');
-    advanceTask();
+    await advanceTask();
   };
 
   // Helpers for drag selection on word grid
@@ -747,7 +786,7 @@ export default function GamesPage() {
     setDragHighlight({});
   };
 
-  const advanceTask = () => {
+  const advanceTask = async () => {
     setSelectedOption(null);
     setMatchAnswers({});
     setTimelineOrder({});
@@ -755,8 +794,7 @@ export default function GamesPage() {
     if (taskIndex < session.tasks.length - 1) {
       setTaskIndex(taskIndex + 1);
     } else {
-      void finishGame();
-      quitGame();
+      await finishGame();
     }
   };
 
@@ -773,6 +811,22 @@ export default function GamesPage() {
 
         {!session ? (
           <div className="space-y-6">
+            {completion && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-green-700">Nice run!</p>
+                    <p className="text-lg font-bold text-islamic-dark">Finished {completion.gameTitle}</p>
+                    <p className="text-sm text-gray-700">Earned {completion.pointsEarned} pts • {completion.tasksPlayed} tasks • Difficulty: {completion.difficulty}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {badgeUnlocked && <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm font-semibold text-green-700 border border-green-300">🏅 Badge progress saved</span>}
+                    <Button variant="primary" onClick={() => { setCompletion(null); resetState(); }}>Play another game</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {gameCatalog.map(game => (
                 <button

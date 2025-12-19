@@ -1,28 +1,86 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
+import Link from 'next/link';
 import { NavCard, StatsCard } from '@/components';
 import { useAuth } from '@/lib/auth-context';
 
 export default function Home() {
   const { profile, loading } = useAuth();
-  const user = {
-    username: profile?.name || 'Friend',
-    points: profile?.points ?? 0,
-    level: profile?.level || 'Beginner',
-    streak: 0,
-    totalDaysLearned: 0,
-  };
+  const user = useMemo(() => {
+    const extras = (profile as unknown as { streak?: number; total_days?: number; totalDays?: number }) || {};
+    return {
+      username: profile?.name || 'Friend',
+      points: profile?.points ?? 0,
+      level: profile?.level || 'Beginner',
+      streak: extras.streak ?? 0,
+      totalDaysLearned: extras.total_days ?? extras.totalDays ?? 0,
+    };
+  }, [profile]);
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'Beginner': return 'text-gray-600';
-      case 'Learner': return 'text-green-600';
-      case 'Explorer': return 'text-blue-600';
-      case 'Young Scholar': return 'text-purple-600';
-      default: return 'text-gray-600';
-    }
-  };
+  const progressPercent = useMemo(() => {
+    const pct = (user.points / 500) * 100;
+    return Math.max(2, Math.min(100, pct));
+  }, [user.points]);
+
+  const questCards = [
+    {
+      title: 'Play & Earn',
+      desc: 'Finish one game and collect a badge.',
+      href: '/games',
+      icon: '🎮',
+      accent: 'from-blue-50 to-blue-100 border-blue-200',
+    },
+    {
+      title: 'Quiz of the Day',
+      desc: 'Answer 5 questions to keep your streak.',
+      href: '/quiz',
+      icon: '🧠',
+      accent: 'from-emerald-50 to-emerald-100 border-emerald-200',
+    },
+    {
+      title: 'New Surah Fact',
+      desc: 'Learn a quick fact from the Qur’an section.',
+      href: '/quran',
+      icon: '📖',
+      accent: 'from-amber-50 to-amber-100 border-amber-200',
+    },
+  ];
+
+  const learningTracks = [
+    {
+      title: 'Qur’an Journey',
+      desc: 'Short surahs, meanings, and gentle stories.',
+      href: '/quran',
+      icon: '🌙',
+      tone: 'from-green-50 to-emerald-100 border-emerald-200',
+      tag: 'Great for ages 6-10',
+    },
+    {
+      title: 'Hadith in Action',
+      desc: 'See how Sunnah guides real-life moments.',
+      href: '/hadith',
+      icon: '🧭',
+      tone: 'from-sky-50 to-sky-100 border-sky-200',
+      tag: 'Try 1 scenario today',
+    },
+    {
+      title: 'Games Arcade',
+      desc: 'Word hunts, decision quests, and timelines.',
+      href: '/games',
+      icon: '⚡',
+      tone: 'from-indigo-50 to-indigo-100 border-indigo-200',
+      tag: 'Earn bonus points',
+    },
+    {
+      title: 'Rewards & Badges',
+      desc: 'See what you unlocked and what is next.',
+      href: '/rewards',
+      icon: '🏅',
+      tone: 'from-rose-50 to-rose-100 border-rose-200',
+      tag: 'Claim your prize',
+    },
+  ];
 
   if (loading) {
     return (
@@ -36,126 +94,144 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white py-8 px-4 text-center">
-        <p className="text-xl mb-2">Let's learn Islam in a fun way!</p>
-        <p className="text-sm opacity-90">
-          You're doing amazing! Keep up the great work. 🌟
-        </p>
-      </div>
-
-      {/* Stats Section */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatsCard label="Total Points" value={user.points} icon="⭐" color="blue" />
-          <StatsCard
-            label="Level"
-            value={user.level}
-            icon="🏆"
-            color="green"
-          />
-          <StatsCard
-            label="Current Streak"
-            value={`${user.streak} days`}
-            icon="🔥"
-            color="yellow"
-          />
-          <StatsCard
-            label="Days Learning"
-            value={user.totalDaysLearned}
-            icon="📅"
-            color="purple"
-          />
+    <div className="min-h-screen bg-gradient-to-b from-[#e8f3ff] via-white to-[#f4fff7]">
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-10">
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-islamic-blue to-islamic-green text-white shadow-xl">
+          <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-3xl" />
+          <div className="absolute right-6 top-6 text-5xl opacity-70">⭐</div>
+          <div className="relative flex flex-col md:flex-row items-center md:items-end justify-between gap-6 px-8 py-10">
+            <div>
+              <p className="text-sm uppercase tracking-wide text-white/80">As-salamu alaykum</p>
+              <h1 className="text-3xl md:text-4xl font-bold islamic-shadow">{user.username}, ready to learn?</h1>
+              <p className="text-white/90 mt-2 max-w-xl">Pick a quest, play a game, and climb to Young Scholar. Short, joyful, and parent-approved.</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/quiz" className="bg-white text-islamic-blue font-semibold px-4 py-2 rounded-xl shadow-sm hover:bg-white/90 transition">Take today&apos;s quiz</Link>
+                <Link href="/games" className="bg-white/10 border border-white/30 text-white font-semibold px-4 py-2 rounded-xl hover:bg-white/20 transition">Jump into games</Link>
+              </div>
+            </div>
+            <div className="bg-white/15 rounded-2xl px-5 py-4 text-sm text-white/90 backdrop-blur">
+              <p className="font-semibold mb-1">Current level</p>
+              <p className="text-2xl font-bold">{user.level}</p>
+              <p className="text-white/80">{user.points} pts • {user.streak || 'No'} day streak</p>
+            </div>
+          </div>
         </div>
 
-        {/* Level Progress */}
-        <div className="mb-8 bg-white rounded-xl p-6 shadow-lg">
-          <h3 className="text-xl font-bold mb-4 text-islamic-dark">Your Level Progress</h3>
-          <div className="mb-2 flex justify-between text-sm">
-            <span>Progress to Young Scholar</span>
-            <span className="font-bold">{user.points} / 500 points</span>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatsCard label="Total Points" value={user.points} icon="⭐" color="blue" />
+          <StatsCard label="Level" value={user.level} icon="🏆" color="green" />
+          <StatsCard label="Current Streak" value={`${user.streak || 0} days`} icon="🔥" color="yellow" />
+          <StatsCard label="Days Learning" value={user.totalDaysLearned || 0} icon="📅" color="purple" />
+        </div>
+
+        {/* Progress bar */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100">
+          <div className="flex items-center justify-between mb-3 text-sm text-slate-700">
+            <span>Path to Young Scholar</span>
+            <span className="font-semibold">{user.points} / 500 pts</span>
           </div>
-          <div className="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
+          <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
             <div
               className="bg-gradient-to-r from-islamic-green to-islamic-blue h-full transition-all duration-500"
-              style={{ width: `${(user.points / 500) * 100}%` }}
-            ></div>
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
+          <p className="text-xs text-slate-500 mt-2">Earn points by finishing a game, a quiz, and one learning track each day.</p>
         </div>
 
-        {/* Main Navigation Cards */}
-        <div className="mb-8">
-          <h3 className="text-2xl font-bold text-islamic-dark mb-6 text-center">
-            What would you like to do today?
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Today’s quests */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🚀</span>
+            <h3 className="text-2xl font-bold text-islamic-dark">Today&apos;s kid-friendly quests</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {questCards.map(card => (
+              <Link
+                key={card.title}
+                href={card.href}
+                className={`group relative overflow-hidden rounded-2xl border ${card.accent} p-5 shadow-sm hover:shadow-xl transition`}
+              >
+                <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-white/40 blur-2xl" />
+                <div className="text-4xl mb-3">{card.icon}</div>
+                <p className="text-lg font-semibold text-islamic-dark">{card.title}</p>
+                <p className="text-sm text-slate-600 mt-1">{card.desc}</p>
+                <div className="mt-3 text-sm font-semibold text-islamic-blue group-hover:translate-x-1 transition">Start now →</div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Learning tracks */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🛤️</span>
+            <h3 className="text-2xl font-bold text-islamic-dark">Pick a learning track</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {learningTracks.map(track => (
+              <Link
+                key={track.title}
+                href={track.href}
+                className={`group relative overflow-hidden rounded-2xl border ${track.tone} p-6 shadow-sm hover:shadow-xl transition`}
+              >
+                <div className="absolute -left-8 -top-8 h-24 w-24 rounded-full bg-white/30 blur-3xl" />
+                <div className="flex items-start gap-4">
+                  <div className="text-4xl">{track.icon}</div>
+                  <div className="space-y-2">
+                    <p className="text-xl font-semibold text-islamic-dark">{track.title}</p>
+                    <p className="text-sm text-slate-600">{track.desc}</p>
+                    <span className="inline-flex items-center gap-2 bg-white/70 text-xs font-semibold text-slate-700 px-3 py-1 rounded-full group-hover:bg-white">
+                      {track.tag}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Spotlight games */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎯</span>
+            <h3 className="text-2xl font-bold text-islamic-dark">Mini-games spotlight</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <NavCard
               href="/games"
-              icon="🎮"
-              title="Islamic Games"
-              description="Play fun matching, memory, and quiz games to earn points!"
+              icon="🧩"
+              title="Word & Story Hunts"
+              description="Find words in Seerah and Qur’an grids, then answer follow-ups."
               color="blue"
             />
             <NavCard
-              href="/quiz"
-              icon="📝"
-              title="Daily Quiz"
-              description="Answer 5 questions daily and test your Islamic knowledge!"
+              href="/games"
+              icon="🛡️"
+              title="Decisions & Scenarios"
+              description="Pick what a Sahabi would do or solve wudu fixes to earn bonus points."
               color="green"
             />
             <NavCard
-              href="/quran"
-              icon="📖"
-              title="Learn Quran"
-              description="Read Quranic Surahs with meanings and beautiful facts!"
+              href="/games"
+              icon="🧪"
+              title="Quick Test Mini"
+              description="Two fast questions to warm up your brain before the big quiz."
               color="purple"
             />
-            <NavCard
-              href="/hadith"
-              icon="📜"
-              title="Learn Hadith"
-              description="Discover authentic Hadith with practical examples!"
-              color="pink"
-            />
-            <NavCard
-              href="/rewards"
-              icon="⭐"
-              title="Rewards & Badges"
-              description="Unlock badges and watch your progress grow!"
-              color="orange"
-            />
-            <NavCard
-              href="/leaderboard"
-              icon="🏆"
-              title="Leaderboard"
-              description="See how you rank with friends! (Top performers this week)"
-              color="yellow"
-            />
           </div>
-        </div>
+        </section>
 
-        {/* Daily Streak Message */}
-        {user.streak >= 3 && (
-          <div className="bg-gradient-to-r from-orange-100 to-yellow-100 border-l-4 border-orange-500 p-6 rounded-lg mb-8">
-            <h4 className="text-lg font-bold text-orange-700 mb-2">🔥 Great Streak!</h4>
-            <p className="text-orange-600">
-              You've been learning for {user.streak} days in a row! Keep this amazing momentum going!
-            </p>
+        {/* Family callout */}
+        <div className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-100 p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-orange-700">Family Challenge</p>
+            <h4 className="text-xl font-bold text-islamic-dark mt-1">Learn together for 15 minutes tonight.</h4>
+            <p className="text-sm text-slate-700 mt-1">Pick any track, then let a parent ask you one question from the quiz. Share what you loved most.</p>
           </div>
-        )}
-
-        {/* Tips Section */}
-        <div className="bg-blue-50 border-l-4 border-islamic-blue p-6 rounded-lg">
-          <h4 className="text-lg font-bold text-islamic-blue mb-3">💡 Daily Tips</h4>
-          <ul className="space-y-2 text-sm">
-            <li>✓ Come back daily to keep your learning streak alive!</li>
-            <li>✓ Read at least one Surah from the Quran section</li>
-            <li>✓ Play games to practice what you learned</li>
-            <li>✓ Answer the daily quiz to earn bonus points</li>
-            <li>✓ Share your progress with family and friends!</li>
-          </ul>
+          <Link href="/leaderboard" className="bg-white text-orange-700 font-semibold px-4 py-2 rounded-xl shadow hover:shadow-md transition">See leaderboard</Link>
         </div>
       </div>
     </div>

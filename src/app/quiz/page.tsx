@@ -23,14 +23,14 @@ export default function QuizPage() {
   const [hasAwarded, setHasAwarded] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
-  const { user, refreshProfile, logout } = useAuth();
+  const { user, profile, refreshProfile, logout } = useAuth();
 
   const filteredQuestions = quizzes.filter(q => q.category === category);
   const currentQuestions = filteredQuestions;
   const currentQuestion = currentQuestions[currentQuestionIndex];
 
   const handleSelectAnswer = (answerIndex: number) => {
-    if ((user?.profile?.gamesRemaining ?? 0) <= 0 && !quizStarted) {
+    if ((profile?.gamesRemaining ?? 0) <= 0 && !quizStarted) {
       setResultToast('⚠️ Daily limit reached (3 games). Come back tomorrow!');
       return;
     }
@@ -207,17 +207,17 @@ export default function QuizPage() {
           </p>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">{user?.profile?.badges || 0}</div>
+              <div className="text-2xl font-bold text-blue-600">{profile?.badges || 0}</div>
               <div className="text-xs text-blue-700 font-semibold">🏆 Badges</div>
               <div className="text-xs text-gray-600">(1 per 250 pts)</div>
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
-              <div className="text-2xl font-bold text-green-600">{user?.profile?.gamesRemaining ?? 3}</div>
+              <div className="text-2xl font-bold text-green-600">{profile?.gamesRemaining ?? 3}</div>
               <div className="text-xs text-green-700 font-semibold">🎮 Games Left</div>
               <div className="text-xs text-gray-600">Today (3/day)</div>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 border border-purple-200">
-              <div className="text-2xl font-bold text-purple-600">{user?.profile?.points || 0}</div>
+              <div className="text-2xl font-bold text-purple-600">{profile?.points || 0}</div>
               <div className="text-xs text-purple-700 font-semibold">⭐ Total Points</div>
               <div className="text-xs text-gray-600">All-time</div>
             </div>
@@ -238,7 +238,7 @@ export default function QuizPage() {
         {!quizStarted ? (
           <div>
             {/* Daily Limit Warning */}
-            {(user?.profile?.gamesRemaining ?? 3) <= 0 && (
+            {(profile?.gamesRemaining ?? 3) <= 0 && (
               <div className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-400 rounded-lg p-4">
                 <div className="text-center">
                   <p className="text-lg font-bold text-orange-700">⏸️ Daily Limit Reached!</p>

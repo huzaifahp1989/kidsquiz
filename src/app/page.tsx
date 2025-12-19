@@ -39,9 +39,6 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white py-8 px-4 text-center">
-        <h2 className="text-4xl font-bold mb-3 islamic-shadow">
-          Assalamu Alaikum, {loading ? '...' : user.username}! 👋
-        </h2>
         <p className="text-xl mb-2">Let's learn Islam in a fun way!</p>
         <p className="text-sm opacity-90">
           You're doing amazing! Keep up the great work. 🌟

@@ -400,6 +400,27 @@ export const quizzes = [
     difficulty: 'Quran Stories',
     points: 1
   },
+  // TEST CATEGORY – 2 Questions (for quick testing)
+  {
+    id: 'test-1',
+    question: 'Test: Choose A',
+    options: ['A', 'B', 'C', 'D'],
+    correctAnswer: 0,
+    explanation: 'This is a test question for quick verification.',
+    category: 'Test',
+    difficulty: 'Test',
+    points: 1
+  },
+  {
+    id: 'test-2',
+    question: 'Test: Choose B',
+    options: ['A', 'B', 'C', 'D'],
+    correctAnswer: 1,
+    explanation: 'Another test question to simulate a short quiz.',
+    category: 'Test',
+    difficulty: 'Test',
+    points: 1
+  },
   {
     id: 'quran-stories-10',
     question: 'Which Surah begins with Alhamdulillah?',

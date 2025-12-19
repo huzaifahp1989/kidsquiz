@@ -7,9 +7,10 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { calculateLevel } from '@/lib/utils';
+import { addPoints as addPointsFallback } from '@/lib/profile-service';
 
 export default function QuizPage() {
-  const [category, setCategory] = useState<'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq' | ''>('');
+  const [category, setCategory] = useState<'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq' | 'Test' | ''>('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -22,7 +23,7 @@ export default function QuizPage() {
   const [hasAwarded, setHasAwarded] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, logout } = useAuth();
 
   const filteredQuestions = quizzes.filter(q => q.category === category);
   const currentQuestions = filteredQuestions;
@@ -55,7 +56,7 @@ export default function QuizPage() {
     }
   };
 
-  const handleStartQuiz = (cat: 'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq') => {
+  const handleStartQuiz = (cat: 'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq' | 'Test') => {
     setCategory(cat);
     setQuizStarted(true);
     setCurrentQuestionIndex(0);
@@ -82,13 +83,13 @@ export default function QuizPage() {
     setResultToast(null);
   };
 
-  // Award points to the signed-in user when the quiz finishes
-  // Check daily game limit (3 max)
-  // Award badges every 250 points
   // Load completed quizzes for this user
   useEffect(() => {
     const loadCompletedQuizzes = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setCompletedQuizzes([]);
+        return;
+      }
       try {
         const { data, error } = await supabase
           .from('quiz_progress')
@@ -96,18 +97,21 @@ export default function QuizPage() {
           .eq('uid', user.id);
         
         if (error) {
-          console.error('Error loading completed quizzes:', error);
+          console.error('Error loading completed quizzes:', error?.message || error);
+          setResultToast('⚠️ Could not load completed quizzes. Please re-sign in.');
         } else {
           setCompletedQuizzes(data?.map(q => q.category) || []);
         }
       } catch (err) {
-        console.error('Error fetching quiz_progress:', err);
+        console.error('Error fetching quiz_progress:', (err as any)?.message || err);
+        setResultToast('⚠️ Network issue loading quizzes. Please try again.');
       }
     };
 
     loadCompletedQuizzes();
   }, [user?.id]);
 
+  // Award points to the signed-in user when the quiz finishes
   useEffect(() => {
     if (!quizComplete || !user?.id || score <= 0 || hasAwarded) {
       console.log('[quiz] Skip award:', { quizComplete, userId: user?.id, score, hasAwarded });
@@ -118,11 +122,11 @@ export default function QuizPage() {
     (async () => {
       console.log('[quiz] Awarding points for user:', user.id, 'score:', score);
       
-      // Use the database function to add points with limits
+      // Use the database function to add points
       const { data, error } = await supabase
-        .rpc('add_points_with_limits', {
-          uid: user.id,
-          points_to_add: score,
+        .rpc('add_points', {
+          p_uid: user.id,
+          p_points_to_add: score,
         });
 
       console.log('[quiz] Database response:', { data, error });
@@ -131,30 +135,21 @@ export default function QuizPage() {
 
       setHasAwarded(true);
       
-      if (error) {
-        console.error('[quiz] RPC failed:', error);
-        setResultToast('⚠️ Could not award points. Try again.');
-      } else if (data && !data.success) {
-        // Daily or weekly limit reached
-        setResultToast(`⚠️ ${data.reason}`);
-      } else if (data && data.success) {
-        const pointsAwarded = data.points_awarded || 0;
-        const gamesRemaining = data.games_remaining || 0;
-        const badgesEarned = data.badges_earned || 0;
+      const handleSuccess = async (awarded: number) => {
+        const pointsAwarded = awarded;
+        const gamesRemaining = data?.games_remaining ?? null;
+        const badgesEarned = data?.badges_earned ?? 0;
 
-        // Build toast message
         let toastMsg = `⭐ +${pointsAwarded} points!`;
-        if (gamesRemaining >= 0) {
+        if (gamesRemaining !== null && gamesRemaining >= 0) {
           toastMsg += ` (${gamesRemaining} games left today)`;
         }
-        
         if (badgesEarned > 0) {
           toastMsg += ` 🏆 ${badgesEarned} badge(s)!`;
         }
 
         setResultToast(toastMsg);
-        
-        // Mark quiz as completed to prevent replay
+
         const { error: markError } = await supabase
           .rpc('mark_quiz_completed', {
             uid: user.id,
@@ -165,19 +160,39 @@ export default function QuizPage() {
         if (markError) {
           console.error('[quiz] Error marking completion:', markError);
         } else {
-          // Update the completed quizzes list
           setCompletedQuizzes(prev => [...new Set([...prev, category])]);
         }
-        
-        // Refresh profile to show updated points and badges
+
         await refreshProfile();
+      };
+
+      if (error) {
+        console.error('[quiz] RPC failed:', error);
+        const message = error?.message || 'Could not award points.';
+        if (message.toLowerCase().includes('invalid refresh token')) {
+          setResultToast('⚠️ Session expired. Please sign in again.');
+          await logout?.();
+          return;
+        }
+
+        // Fallback: direct update via profile-service
+        const fallback = await addPointsFallback(user.id, score);
+        if (fallback) {
+          await handleSuccess(score);
+        } else {
+          setResultToast(`⚠️ Could not award points (${message}). Please complete your profile first.`);
+        }
+      } else if (data && !data.success) {
+        setResultToast(`⚠️ ${data.reason}`);
+      } else if (data && data.success) {
+        await handleSuccess(data.points_awarded || score);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile]);
+  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile, logout, category]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white py-8 px-4">
@@ -485,6 +500,32 @@ export default function QuizPage() {
             </div>
 
             {/* Options */}
+
+                {/* Test (2 questions) */}
+                <button
+                  onClick={() => handleStartQuiz('Test')}
+                  disabled={completedQuizzes.includes('Test')}
+                  className={`p-6 border-4 border-gray-300 rounded-xl hover:shadow-lg transition ${
+                    completedQuizzes.includes('Test')
+                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-4xl mb-2">🧪</div>
+                      <h3 className="text-2xl font-bold text-gray-700 mb-2">Test</h3>
+                      <p className="text-gray-700 mb-2">Quick 2-question test quiz</p>
+                      <p className="text-sm text-gray-600">2 questions • 1 point each</p>
+                    </div>
+                    {completedQuizzes.includes('Test') && (
+                      <div className="flex flex-col items-center">
+                        <CheckCircle className="text-green-600 w-8 h-8" />
+                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
             <div className="space-y-3">
               {currentQuestion.options.map((option, index) => (
                 <button

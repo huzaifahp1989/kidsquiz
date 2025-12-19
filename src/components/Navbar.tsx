@@ -13,10 +13,19 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
   return (
     <nav className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white p-4 shadow-lg">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl">📚</span>
-          <h1 className="text-xl font-bold">Islamic Kids</h1>
-        </Link>
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-2xl">📚</span>
+            <h1 className="text-xl font-bold">Islamic Kids</h1>
+          </Link>
+          
+          <Link 
+            href="/" 
+            className="text-white hover:text-white/80 font-medium transition"
+          >
+            Home
+          </Link>
+        </div>
         
         <div className="flex items-center gap-6">
           {username && (

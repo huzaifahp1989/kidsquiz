@@ -35,21 +35,18 @@ CREATE INDEX IF NOT EXISTS users_points_idx ON users(points DESC);
 CREATE INDEX IF NOT EXISTS users_weeklyPoints_idx ON users(weeklyPoints DESC);
 CREATE INDEX IF NOT EXISTS users_monthlyPoints_idx ON users(monthlyPoints DESC);
 
--- ============================================================================
--- 2. QUIZ PROGRESS TABLE (Track user quiz attempts)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS quiz_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   uid UUID NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-  quizId TEXT NOT NULL,
-  difficulty TEXT CHECK (difficulty IN ('Easy', 'Medium', 'Hard')),
-  score INTEGER DEFAULT 0,
-  completedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(uid, quizId, difficulty)
+  category TEXT NOT NULL,
+  score INTEGER DEFAULT 0 CHECK (score >= 0),
+  completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(uid, category)
 );
 
 CREATE INDEX IF NOT EXISTS quiz_progress_uid_idx ON quiz_progress(uid);
-CREATE INDEX IF NOT EXISTS quiz_progress_completedAt_idx ON quiz_progress(completedAt DESC);
+CREATE INDEX IF NOT EXISTS quiz_progress_category_idx ON quiz_progress(category);
+CREATE INDEX IF NOT EXISTS quiz_progress_completed_idx ON quiz_progress(completed_at DESC);
 
 -- ============================================================================
 -- 3. GAME PROGRESS TABLE (Track game plays and scores)
@@ -135,8 +132,6 @@ CREATE POLICY "Users can update their own profile" ON users
   FOR UPDATE USING (auth.uid() = uid)
   WITH CHECK (auth.uid() = uid);
 
--- ============================================================================
--- QUIZ_PROGRESS TABLE POLICIES
 -- ============================================================================
 
 -- Policy 1: Users can read their own quiz progress

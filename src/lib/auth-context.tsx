@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { ensureUserProfile } from '@/lib/user-profile';
 
 type KidProfile = {
   uid: string;
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted && sessionData.session?.user) {
           console.log('Found existing session:', sessionData.session.user.id);
           setUser({ id: sessionData.session.user.id, email: sessionData.session.user.email });
+          setLoading(false);
           return;
         }
 
@@ -58,16 +60,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // No session; stay signed out. UI can prompt to sign in.
+        if (isMounted) {
+          setLoading(false);
+        }
       } catch (err) {
         console.error('Auth init error:', err);
         // Leave user null on error
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     initAuth();
 
     // Also listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event, 'Session:', session?.user?.id);
       if (isMounted) {
         const u = session?.user ? { id: session.user.id, email: session.user.email } : null;
         console.log('Auth state changed:', u?.id);
@@ -122,8 +131,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Profile mapped:', profile);
         setProfile(profile);
       } else {
-        console.log('No profile data found for user');
-        setProfile(null);
+        console.log('No profile data found for user; ensuring default profile');
+        const created = await ensureUserProfile(user.id);
+        if (created) {
+          const { data: refetched } = await supabase
+            .from('users')
+            .select('*')
+            .eq('uid', user.id)
+            .maybeSingle();
+          if (refetched) {
+            const dailyGamesPlayed = refetched.daily_games_played || 0;
+            const profile: KidProfile = {
+              uid: refetched.uid,
+              role: refetched.role,
+              name: refetched.name,
+              age: refetched.age,
+              email: refetched.email,
+              points: refetched.points || 0,
+              weeklyPoints: refetched.weeklypoints || 0,
+              monthlyPoints: refetched.monthlypoints || 0,
+              badges: refetched.badges || 0,
+              dailyGamesPlayed: dailyGamesPlayed,
+              gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
+              level: refetched.level,
+            };
+            setProfile(profile);
+          } else {
+            setProfile(null);
+          }
+        } else {
+          setProfile(null);
+        }
       }
       setLoading(false);
     })();

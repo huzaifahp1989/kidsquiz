@@ -57,17 +57,15 @@ CREATE POLICY "users_service_all" ON public.users
   WITH CHECK (true);
 
 -- ===========================================
--- 2. QUIZ_PROGRESS TABLE POLICIES (if exists)
--- ===========================================
 
 -- Create table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.quiz_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   uid UUID NOT NULL REFERENCES public.users(uid) ON DELETE CASCADE,
-  quizId TEXT NOT NULL,
-  difficulty TEXT,
-  score INTEGER DEFAULT 0,
-  completedAt TIMESTAMP DEFAULT NOW()
+  category TEXT NOT NULL,
+  score INTEGER DEFAULT 0 CHECK (score >= 0),
+  completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(uid, category)
 );
 
 -- Drop old policies
@@ -168,8 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_users_monthly_desc ON public.users(monthlyPoints 
 
 -- Quiz progress indexes
 CREATE INDEX IF NOT EXISTS idx_quiz_uid ON public.quiz_progress(uid);
-CREATE INDEX IF NOT EXISTS idx_quiz_id ON public.quiz_progress(quizId);
-CREATE INDEX IF NOT EXISTS idx_quiz_completed ON public.quiz_progress(completedAt DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_category ON public.quiz_progress(category);
+CREATE INDEX IF NOT EXISTS idx_quiz_completed ON public.quiz_progress(completed_at DESC);
 
 -- Game progress indexes
 CREATE INDEX IF NOT EXISTS idx_game_uid ON public.game_progress(uid);

@@ -85,8 +85,6 @@ export function FeedbackBanner() {
         <div className="max-w-6xl mx-auto flex justify-center">
           <a
             href="https://imediackids.com/competition"
-            target="_blank"
-            rel="noopener noreferrer"
             className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white px-4 py-2 rounded-full text-sm md:text-base font-bold hover:opacity-90 transition shadow-sm w-full md:w-auto whitespace-normal break-words text-center"
             title="Kids Live Competition"
           >

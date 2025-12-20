@@ -18,7 +18,6 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
             <span className="text-2xl">📚</span>
             <h1 className="text-xl font-bold">Islamic Kids</h1>
           </Link>
-          
           <Link 
             href="/" 
             className="text-white hover:text-white/80 font-medium transition"
@@ -27,7 +26,8 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
           </Link>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-6">
           {username && (
             <div className="text-sm">
               <p className="font-semibold">{username}</p>
@@ -67,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
               </Link>
             </>
           )}
+          </div>
         </div>
       </div>
     </nav>

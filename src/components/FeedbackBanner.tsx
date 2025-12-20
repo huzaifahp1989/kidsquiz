@@ -80,6 +80,21 @@ export function FeedbackBanner() {
         </div>
       </div>
 
+      {/* Competition Link (below notice) */}
+      <div className="py-2 px-4">
+        <div className="max-w-6xl mx-auto flex justify-center">
+          <a
+            href="https://imediackids.com/competition"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white px-3 py-1 rounded-full text-xs md:text-sm font-semibold hover:opacity-90 transition shadow-sm w-full md:w-auto truncate md:whitespace-normal"
+            title="Kids Live Competition"
+          >
+            🎉 Live Competition: Take part now and win a Chromebook, tablet, vouchers & gifts — Ends Feb 2026
+          </a>
+        </div>
+      </div>
+
       {/* Feedback Box */}
       {showFeedback && (
         <div className="bg-white border-b border-gray-200 shadow-lg">

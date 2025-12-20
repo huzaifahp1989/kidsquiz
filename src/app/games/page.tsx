@@ -19,7 +19,6 @@ import {
   sahabahTimeline,
   seerahWordSearch,
   wuduFixerPool,
-  testMiniPool,
 } from '@/data/games';
 
 type GameId =
@@ -31,7 +30,7 @@ type GameId =
   | 'halal-haram-makrooh'
   | 'sahabah-timeline'
   | 'sahabah-decision'
-  | 'test-mini';
+  ;
 
 type TaskKind = 'mcq' | 'wordsearch' | 'match' | 'timeline';
 
@@ -77,12 +76,6 @@ type CompletionSummary = {
 };
 
 const gameCatalog: { id: GameId; title: string; description: string; icon: string }[] = [
-  {
-    id: 'test-mini',
-    title: 'Test Mini Game',
-    description: 'Two quick questions for testing',
-    icon: '🧪',
-  },
   {
     id: 'word-search-seerah',
     title: 'Word Search – Seerah',
@@ -388,27 +381,6 @@ const buildWordSearchSession = (config: WordSearchConfig, difficulty: Difficulty
 
 const buildGameSession = (gameId: GameId, difficulty: Difficulty): GameSession => {
   switch (gameId) {
-    case 'test-mini': {
-      const tasks = testMiniPool.map(item => {
-        const opts = shuffle(item.options);
-        const options = opts.map((opt, idx) => ({ id: `${item.id}-${idx}`, text: opt }));
-        const correctOptionId = options.find(o => o.text === item.correct)?.id;
-        return {
-          id: item.id,
-          kind: 'mcq',
-          prompt: item.prompt,
-          points: 1,
-          options,
-          correctOptionId,
-        } as Task;
-      });
-      return {
-        id: gameId,
-        title: 'Test Mini Game',
-        icon: '🧪',
-        tasks,
-      };
-    }
     case 'word-search-seerah':
       return buildWordSearchSession(seerahWordSearch, difficulty, gameId);
     case 'word-search-quran':
@@ -853,6 +825,12 @@ export default function GamesPage() {
                 <li>• Weekly reset seed: {weekKey}</li>
               </ul>
             </div>
+
+            {toast && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm text-center">
+                {toast}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6">

@@ -397,18 +397,4 @@ export const hiddenChallenges: BaseTask[] = [
   },
 ];
 
-// Minimal test pool: 2 simple MCQs for quick verification
-export const testMiniPool = [
-  {
-    id: 'test-1',
-    prompt: 'Test Q1: Which option is correct?',
-    correct: 'A',
-    options: ['A', 'B', 'C', 'D'],
-  },
-  {
-    id: 'test-2',
-    prompt: 'Test Q2: Pick the right answer',
-    correct: 'B',
-    options: ['A', 'B', 'C', 'D'],
-  },
-];
+// (Removed) Minimal test pool used for local testing

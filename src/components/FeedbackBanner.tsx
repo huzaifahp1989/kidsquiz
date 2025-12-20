@@ -87,7 +87,7 @@ export function FeedbackBanner() {
             href="https://imediackids.com/competition"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white px-3 py-1 rounded-full text-xs md:text-sm font-semibold hover:opacity-90 transition shadow-sm w-full md:w-auto truncate md:whitespace-normal"
+            className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white px-4 py-2 rounded-full text-sm md:text-base font-bold hover:opacity-90 transition shadow-sm w-full md:w-auto truncate md:whitespace-normal text-center"
             title="Kids Live Competition"
           >
             🎉 Live Competition: Take part now and win a Chromebook, tablet, vouchers & gifts — Ends Feb 2026

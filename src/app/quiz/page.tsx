@@ -211,9 +211,9 @@ export default function QuizPage() {
               <div className="text-xs text-blue-700 font-semibold">🏆 Badges</div>
               <div className="text-xs text-gray-600">(1 per 250 pts)</div>
             </div>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
-              <div className="text-2xl font-bold text-green-600">{profile?.gamesRemaining ?? 3}</div>
-              <div className="text-xs text-green-700 font-semibold">🎮 Games Left</div>
+            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-3 border border-cyan-200">
+              <div className="text-2xl font-bold text-cyan-600">{profile?.gamesRemaining ?? 3}</div>
+              <div className="text-xs text-cyan-700 font-semibold">🎮 Games Left</div>
               <div className="text-xs text-gray-600">Today (3/day)</div>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 border border-purple-200">
@@ -222,7 +222,7 @@ export default function QuizPage() {
               <div className="text-xs text-gray-600">All-time</div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 border-2 border-islamic-blue rounded-lg p-4 mt-4">
+          <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-islamic-blue rounded-lg p-4 mt-4">
             <p className="text-sm font-semibold text-islamic-dark mb-1">
               🎯 Points System: 1 point per correct answer | 10 questions per quiz = 10 points max
             </p>
@@ -263,23 +263,23 @@ export default function QuizPage() {
                 <button
                   onClick={() => handleStartQuiz('Seerah')}
                   disabled={completedQuizzes.includes('Seerah')}
-                  className={`p-6 border-4 border-green-300 rounded-xl hover:shadow-lg transition ${
+                  className={`p-6 border-4 border-sky-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Seerah')
                       ? 'bg-gray-100 opacity-60 cursor-not-allowed'
-                      : 'bg-green-50 hover:bg-green-100'
+                      : 'bg-sky-50 hover:bg-sky-100'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="text-4xl mb-2">🕌</div>
-                      <h3 className="text-2xl font-bold text-green-700 mb-2">Seerah</h3>
+                      <h3 className="text-2xl font-bold text-sky-700 mb-2">Seerah</h3>
                       <p className="text-gray-700 mb-2">Life of Prophet Muhammad ﷺ</p>
                       <p className="text-sm text-gray-600">10 questions • 1 point each</p>
                     </div>
                     {completedQuizzes.includes('Seerah') && (
                       <div className="flex flex-col items-center">
-                        <CheckCircle className="text-green-600 w-8 h-8" />
-                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                        <CheckCircle className="text-sky-600 w-8 h-8" />
+                        <span className="text-xs text-sky-600 font-bold mt-1">Completed</span>
                       </div>
                     )}
                   </div>

@@ -91,7 +91,7 @@ export default function QuranPage() {
                 <h3 className="font-bold text-islamic-gold mb-3 text-lg">📌 Main Lesson</h3>
                 <p className="text-gray-700">{selectedSurah.mainLesson}</p>
               </div>
-              <div className="bg-green-50 border-l-4 border-islamic-green p-6 rounded-lg">
+              <div className="bg-sky-50 border-l-4 border-islamic-green p-6 rounded-lg">
                 <h3 className="font-bold text-islamic-green mb-3 text-lg">✨ Why We Read It</h3>
                 <p className="text-gray-700">{selectedSurah.whyRead}</p>
               </div>

@@ -46,10 +46,17 @@ export const seerahWordSearch: WordSearchConfig = {
     'BATTLEBADR',
     'UHAD',
     'AHZAB',
+    'ANSAR',
+    'MUHAJIROON',
+    'ISRA',
+    'MIRAJ',
+    'AQABAH',
+    'TRENCH',
+    'FATAH',
   ],
-  count: 6,
-  minSize: 8,
-  maxSize: 12,
+  count: 8,
+  minSize: 10,
+  maxSize: 14,
   followUp: [
     {
       id: 'seerah-follow-1',
@@ -75,6 +82,30 @@ export const seerahWordSearch: WordSearchConfig = {
       ],
       correctOptionId: 'f1',
     },
+    {
+      id: 'seerah-follow-3',
+      prompt: 'Who were the Ansar?',
+      points: 4,
+      options: [
+        { id: 'a1', text: 'The Muslims of Madinah who helped' },
+        { id: 'a2', text: 'The people of Makkah' },
+        { id: 'a3', text: 'The travelers' },
+        { id: 'a4', text: 'The enemies in Badr' },
+      ],
+      correctOptionId: 'a1',
+    },
+    {
+      id: 'seerah-follow-4',
+      prompt: 'What was the trench dug for?',
+      points: 4,
+      options: [
+        { id: 't1', text: 'Battle of Ahzab (Trench)' },
+        { id: 't2', text: 'Battle of Badr' },
+        { id: 't3', text: 'Building a Masjid' },
+        { id: 't4', text: 'Planting trees' },
+      ],
+      correctOptionId: 't1',
+    },
   ],
 };
 
@@ -92,10 +123,14 @@ export const quranWordSearch: WordSearchConfig = {
     'JUZ',
     'MANZIL',
     'QIRAAT',
+    'RUKU',
+    'SAJDAH',
+    'BASMALAH',
+    'FATIHAH',
   ],
-  count: 6,
-  minSize: 8,
-  maxSize: 12,
+  count: 8,
+  minSize: 10,
+  maxSize: 14,
   conceptual: {
     choices: [
       {
@@ -121,6 +156,30 @@ export const quranWordSearch: WordSearchConfig = {
           { id: 'qd4', text: 'Translation methods' },
         ],
         correctOptionId: 'qd1',
+      },
+      {
+        id: 'q-concept-3',
+        prompt: 'What is a "Juz"?',
+        points: 3,
+        options: [
+          { id: 'qe1', text: 'One of the 30 parts of the Quran' },
+          { id: 'qe2', text: 'A small surah' },
+          { id: 'qe3', text: 'A type of prayer' },
+          { id: 'qe4', text: 'A prophet name' },
+        ],
+        correctOptionId: 'qe1',
+      },
+      {
+        id: 'q-concept-4',
+        prompt: 'What does "Hifz" mean?',
+        points: 3,
+        options: [
+          { id: 'qf1', text: 'Memorization of the Quran' },
+          { id: 'qf2', text: 'Reading from a book' },
+          { id: 'qf3', text: 'Writing the Quran' },
+          { id: 'qf4', text: 'Understanding Arabic' },
+        ],
+        correctOptionId: 'qf1',
       },
     ],
   },
@@ -152,6 +211,21 @@ export const hadithMeaningPool = [
     text: 'Allah loves gentleness',
     correctActions: ['be-gentle', 'soft-speech'],
   },
+  {
+    id: 'h-honesty',
+    text: 'Truthfulness leads to piety',
+    correctActions: ['telling-truth', 'admitting-mistake'],
+  },
+  {
+    id: 'h-parents',
+    text: 'Paradise lies at the feet of mothers',
+    correctActions: ['serving-mom', 'respecting-parents'],
+  },
+  {
+    id: 'h-cleanliness',
+    text: 'Cleanliness is half of faith',
+    correctActions: ['washing-hands', 'wudu-properly'],
+  },
 ];
 
 export const hadithActionsPool = [
@@ -169,6 +243,12 @@ export const hadithActionsPool = [
   { id: 'rough-play', text: 'Being rough during play' },
   { id: 'be-gentle', text: 'Responding with gentleness' },
   { id: 'soft-speech', text: 'Lowering your voice kindly' },
+  { id: 'telling-truth', text: 'Telling the truth even if scared' },
+  { id: 'admitting-mistake', text: 'Admitting a mistake honestly' },
+  { id: 'serving-mom', text: 'Helping mother with chores' },
+  { id: 'respecting-parents', text: 'Speaking politely to parents' },
+  { id: 'washing-hands', text: 'Washing hands before eating' },
+  { id: 'wudu-properly', text: 'Performing wudu with care' },
 ];
 
 export const hadithScenarioPool = [
@@ -212,6 +292,18 @@ export const hadithScenarioPool = [
       'Do it fast only',
     ],
   },
+  {
+    id: 'sharing',
+    scenario: 'You share your toys with a friend who has none.',
+    correct: 'Generosity',
+    options: ['Generosity', 'Showing off', 'Keeping everything', 'Wastefulness'],
+  },
+  {
+    id: 'neighbor',
+    scenario: 'You send some food to your neighbor.',
+    correct: 'Rights of neighbors',
+    options: ['Rights of neighbors', 'Wasting food', 'Asking for favor', 'Ignoring them'],
+  },
 ];
 
 export const wuduFixerPool = [
@@ -245,12 +337,18 @@ export const wuduFixerPool = [
     correct: 'Makrooh (Waste of water)',
     options: ['Correct', 'Makrooh (Waste of water)', 'Farḍ to waste less'],
   },
+  {
+    id: 'missed-heel',
+    prompt: 'Zaid washed his feet but left his heels dry.',
+    correct: 'Incorrect (Invalid wudu)',
+    options: ['Correct', 'Incorrect (Invalid wudu)', 'Makrooh'],
+  },
 ];
 
 export const halalHaramPool = [
   {
     id: 'delay-salah',
-    prompt: 'Delaying salah without reason.',
+    prompt: 'Delaying salah until the last minute without reason.',
     correct: 'Makrooh',
     options: ['Halal', 'Haram', 'Makrooh'],
   },
@@ -278,6 +376,18 @@ export const halalHaramPool = [
     correct: 'Makrooh',
     options: ['Halal', 'Haram', 'Makrooh'],
   },
+  {
+    id: 'backbiting',
+    prompt: 'Talking bad about someone behind their back.',
+    correct: 'Haram',
+    options: ['Halal', 'Haram', 'Makrooh'],
+  },
+  {
+    id: 'siwak',
+    prompt: 'Using Siwak (Miswak) to clean teeth.',
+    correct: 'Halal',
+    options: ['Halal', 'Haram', 'Makrooh'],
+  },
 ];
 
 export const sahabahTimeline = [
@@ -299,6 +409,26 @@ export const sahabahTimeline = [
       'Protected Muslims in public prayer',
       'Migrated to Madinah openly',
       'Served as a just leader',
+    ],
+  },
+  {
+    id: 'uthman',
+    name: 'Uthman (RA)',
+    events: [
+      'Married two daughters of the Prophet ﷺ',
+      'Migrated to Abyssinia',
+      'Compiled the Quran',
+      'Was known for modesty (Haya)',
+    ],
+  },
+  {
+    id: 'ali',
+    name: 'Ali (RA)',
+    events: [
+      'Accepted Islam as a child',
+      'Slept in Prophet’s ﷺ bed during Hijrah',
+      'Hero of Khaybar',
+      'Married Fatimah (RA)',
     ],
   },
   {
@@ -355,6 +485,28 @@ export const sahabahDecisionScenarios = [
       'Give generously for Allah',
       'Only help close friends',
       'Wait for others to help first',
+    ],
+  },
+  {
+    id: 'uthman-well',
+    prompt: 'You are Uthman (RA). The Muslims need water but the well is expensive.',
+    correct: 'Buy the well for the Muslims',
+    options: [
+      'Buy the well for the Muslims',
+      'Ignore the need',
+      'Ask others to pay',
+      'Keep money for yourself',
+    ],
+  },
+  {
+    id: 'ali-courage',
+    prompt: 'You are Ali (RA). The Prophet ﷺ needs someone to sleep in his bed as a decoy.',
+    correct: 'Sleep in the bed bravely',
+    options: [
+      'Sleep in the bed bravely',
+      'Refuse out of fear',
+      'Run away with him',
+      'Hide somewhere else',
     ],
   },
   {

@@ -36,7 +36,7 @@ export default function Home() {
       desc: 'Answer 5 questions to keep your streak.',
       href: '/quiz',
       icon: '🧠',
-      accent: 'from-emerald-50 to-emerald-100 border-emerald-200',
+      accent: 'from-sky-50 to-sky-100 border-sky-200',
     },
     {
       title: 'New Surah Fact',
@@ -53,7 +53,7 @@ export default function Home() {
       desc: 'Short surahs, meanings, and gentle stories.',
       href: '/quran',
       icon: '🌙',
-      tone: 'from-green-50 to-emerald-100 border-emerald-200',
+      tone: 'from-cyan-50 to-sky-100 border-sky-200',
       tag: 'Great for ages 6-10',
     },
     {
@@ -94,7 +94,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#e8f3ff] via-white to-[#f4fff7]">
+    <div className="min-h-screen bg-gradient-to-b from-[#e8f3ff] via-white to-[#f0f9ff]">
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-10">
         {/* Hero */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-islamic-blue to-islamic-green text-white shadow-xl">
@@ -214,13 +214,7 @@ export default function Home() {
               description="Pick what a Sahabi would do or solve wudu fixes to earn bonus points."
               color="green"
             />
-            <NavCard
-              href="/games"
-              icon="🧪"
-              title="Quick Test Mini"
-              description="Two fast questions to warm up your brain before the big quiz."
-              color="purple"
-            />
+
           </div>
         </section>
 

@@ -634,12 +634,22 @@ export default function GamesPage() {
     if (!currentTask || !selectedOption) return;
     const correct = selectedOption === currentTask.correctOptionId;
     const projectedStreak = correct ? correctStreak + 1 : 0;
+    
     if (correct) {
       await awardPoints(currentTask.points, projectedStreak);
+      setFeedback('🎉 Correct!');
+    } else {
+      const correctText = currentTask.options.find(o => o.id === currentTask.correctOptionId)?.text || 'Unknown';
+      setFeedback(`Not quite. The correct answer was: ${correctText}`);
     }
+
     adjustDifficulty(correct);
-    setFeedback(correct ? '🎉 Correct!' : 'Not quite. Keep going!');
-    await advanceTask();
+    
+    // Delay before advancing so user can read feedback
+    setTimeout(async () => {
+      setFeedback(null);
+      await advanceTask();
+    }, correct ? 1500 : 3500);
   };
 
   const evaluateMatch = async () => {
@@ -652,12 +662,20 @@ export default function GamesPage() {
     }
     const correct = meanings.every(m => m.correctActions.includes(matchAnswers[m.id]));
     const projectedStreak = correct ? correctStreak + 1 : 0;
+    
     if (correct) {
       await awardPoints(currentTask.points, projectedStreak);
+      setFeedback('Matched perfectly! MashaAllah!');
+    } else {
+      setFeedback('Some matches were incorrect. Review the answers.');
     }
+    
     adjustDifficulty(correct);
-    setFeedback(correct ? 'Matched perfectly!' : 'Some matches need review.');
-    await advanceTask();
+
+    setTimeout(async () => {
+      setFeedback(null);
+      await advanceTask();
+    }, correct ? 1500 : 3500);
   };
 
   const evaluateTimeline = async () => {
@@ -670,12 +688,20 @@ export default function GamesPage() {
     }
     const correct = ordered.every((ev, idx) => timelineOrder[ev] === idx + 1);
     const projectedStreak = correct ? correctStreak + 1 : 0;
+    
     if (correct) {
       await awardPoints(currentTask.points, projectedStreak);
+      setFeedback('Timeline locked correctly! Well done.');
+    } else {
+      setFeedback('The order is not quite right. Keep learning!');
     }
+    
     adjustDifficulty(correct);
-    setFeedback(correct ? 'Timeline locked correctly!' : 'Order needs a tweak.');
-    await advanceTask();
+
+    setTimeout(async () => {
+      setFeedback(null);
+      await advanceTask();
+    }, correct ? 1500 : 3500);
   };
 
   const evaluateWordSearch = async () => {
@@ -688,8 +714,12 @@ export default function GamesPage() {
     const projectedStreak = correctStreak + 1;
     await awardPoints(4, projectedStreak);
     adjustDifficulty(true);
-    setFeedback('Great search! Ready for the follow-up.');
-    await advanceTask();
+    setFeedback('Great search! Ready for the next challenge.');
+    
+    setTimeout(async () => {
+      setFeedback(null);
+      await advanceTask();
+    }, 1500);
   };
 
   // Helpers for drag selection on word grid

@@ -9,7 +9,7 @@ module.exports = {
     extend: {
       colors: {
         'islamic-blue': '#1E40AF',
-        'islamic-green': '#16A34A',
+        'islamic-green': '#3B82F6',
         'islamic-gold': '#D97706',
         'islamic-light': '#F0F9FF',
         'islamic-dark': '#1E293B',

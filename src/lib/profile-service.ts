@@ -9,12 +9,24 @@ export interface KidProfile {
   points: number;
   weeklyPoints: number;
   monthlyPoints: number;
+  badges: number;
+  gamesRemaining: number;
   level: string;
   createdAt: string;
   updatedAt: string;
 }
 
 function mapUser(row: any): KidProfile {
+  const dailyGames = row.daily_games_played ?? 0;
+  // Calculate games remaining (default 3)
+  // Note: accurate calculation requires last_game_date check against today, 
+  // but for simple mapping we rely on what DB returns or default.
+  // Ideally the DB view or query returns 'games_remaining' or we calculate it.
+  // For now, we'll map raw data.
+  const limit = 3;
+  // Simple client-side check if needed, but better if DB resets it.
+  // We'll assume row.daily_games_played is accurate for today if updated recently.
+  
   return {
     uid: row.uid,
     email: row.email,
@@ -24,6 +36,8 @@ function mapUser(row: any): KidProfile {
     points: row.points ?? 0,
     weeklyPoints: row.weeklyPoints ?? row.weeklypoints ?? 0,
     monthlyPoints: row.monthlyPoints ?? row.monthlypoints ?? 0,
+    badges: row.badges ?? 0,
+    gamesRemaining: Math.max(0, limit - dailyGames),
     level: row.level ?? 'Beginner',
     createdAt: row.createdAt ?? row.createdat ?? '',
     updatedAt: row.updatedAt ?? row.updatedat ?? '',
@@ -37,7 +51,7 @@ export async function getProfile(uid: string): Promise<KidProfile | null> {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, level, createdat:createdAt, updatedat:updatedAt')
+      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, badges, daily_games_played, level, createdat:createdAt, updatedat:updatedAt')
       .eq('uid', uid)
       .maybeSingle();
 
@@ -74,9 +88,11 @@ export async function createProfile(
         points: 0,
         weeklypoints: 0,
         monthlypoints: 0,
+        badges: 0,
+        daily_games_played: 0,
         level: 'Beginner',
       }, { onConflict: 'uid', ignoreDuplicates: true })
-      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, level, createdat:createdAt, updatedat:updatedAt')
+      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, badges, daily_games_played, level, createdat:createdAt, updatedat:updatedAt')
       .single();
 
     if (error) {
@@ -122,7 +138,7 @@ export async function addPoints(uid: string, pointsToAdd: number): Promise<KidPr
         updatedat: new Date().toISOString(),
       })
       .eq('uid', uid)
-      .select('uid,email,name,age,role,points,weeklypoints,monthlypoints,level,createdat,updatedat')
+      .select('uid,email,name,age,role,points,weeklypoints,monthlypoints,badges,daily_games_played,level,createdat,updatedat')
       .maybeSingle();
 
     if (error) {

@@ -24,6 +24,12 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
           >
             Home
           </Link>
+          <Link 
+            href="/leaderboard" 
+            className="text-white hover:text-white/80 font-medium transition"
+          >
+            Leaderboard
+          </Link>
         </div>
         
         <div className="flex flex-col items-end gap-2">

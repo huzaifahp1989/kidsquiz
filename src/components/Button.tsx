@@ -13,7 +13,7 @@ interface ButtonProps {
 const variantClasses = {
   primary: 'bg-islamic-blue hover:bg-blue-700 text-white',
   secondary: 'bg-gray-400 hover:bg-gray-500 text-white',
-  success: 'bg-islamic-green hover:bg-green-700 text-white',
+  success: 'bg-islamic-green hover:bg-blue-600 text-white',
   danger: 'bg-red-500 hover:bg-red-600 text-white',
   warning: 'bg-islamic-gold hover:bg-yellow-600 text-white',
 };

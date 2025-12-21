@@ -100,7 +100,7 @@ export default function Home() {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-islamic-blue to-islamic-green text-white shadow-xl">
           <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-3xl" />
           <div className="absolute right-6 top-6 text-5xl opacity-70">⭐</div>
-          <div className="relative flex flex-col md:flex-row items-center md:items-end justify-between gap-6 px-8 py-10">
+          <div className="relative flex flex-col md:flex-row items-center md:items-end justify-between gap-6 px-6 py-8 md:px-8 md:py-10">
             <div>
               <p className="text-sm uppercase tracking-wide text-white/80">As-salamu alaykum</p>
               <h1 className="text-3xl md:text-4xl font-bold islamic-shadow">{user.username}, ready to learn?</h1>

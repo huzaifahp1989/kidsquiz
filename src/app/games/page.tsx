@@ -895,30 +895,32 @@ export default function GamesPage() {
             {session.wordSearch && (
               <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
                 <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="font-bold mb-2">Word Grid (rows/cols shuffle every play)</div>
-                    <div
-                      className="grid gap-1 select-none"
-                      style={{
-                        gridTemplateColumns: `repeat(${session.wordSearch.grid.length}, minmax(28px, 1fr))`,
-                        touchAction: 'none',
-                      }}
-                    >
-                      {session.wordSearch.grid.map((row, rIdx) =>
-                        row.map((cell, cIdx) => (
-                          <div
-                            key={`${rIdx}-${cIdx}`}
-                            className={`text-center text-sm font-mono border rounded py-1 cursor-pointer ${
-                              dragHighlight[keyFor(rIdx, cIdx)] ? 'bg-yellow-200 border-yellow-500' : 'bg-gray-50'
-                            }`}
-                            onPointerDown={() => onCellPointerDown(rIdx, cIdx)}
-                            onPointerEnter={() => onCellPointerEnter(rIdx, cIdx)}
-                            onPointerUp={() => onCellPointerUp(rIdx, cIdx)}
-                          >
-                            {cell}
-                          </div>
-                        )),
-                      )}
+                    <div className="overflow-x-auto pb-2">
+                      <div
+                        className="grid gap-1 select-none min-w-max mx-auto"
+                        style={{
+                          gridTemplateColumns: `repeat(${session.wordSearch.grid.length}, minmax(28px, 1fr))`,
+                          touchAction: 'none',
+                        }}
+                      >
+                        {session.wordSearch.grid.map((row, rIdx) =>
+                          row.map((cell, cIdx) => (
+                            <div
+                              key={`${rIdx}-${cIdx}`}
+                              className={`text-center text-sm font-mono border rounded py-1 cursor-pointer w-7 h-8 flex items-center justify-center ${
+                                dragHighlight[keyFor(rIdx, cIdx)] ? 'bg-yellow-200 border-yellow-500' : 'bg-gray-50'
+                              }`}
+                              onPointerDown={() => onCellPointerDown(rIdx, cIdx)}
+                              onPointerEnter={() => onCellPointerEnter(rIdx, cIdx)}
+                              onPointerUp={() => onCellPointerUp(rIdx, cIdx)}
+                            >
+                              {cell}
+                            </div>
+                          )),
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="w-full md:w-64">

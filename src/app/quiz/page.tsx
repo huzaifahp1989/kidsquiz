@@ -205,7 +205,7 @@ export default function QuizPage() {
           <p className="text-lg text-gray-600 mb-2">
             Test your Islamic knowledge and earn points!
           </p>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
               <div className="text-2xl font-bold text-blue-600">{profile?.badges || 0}</div>
               <div className="text-xs text-blue-700 font-semibold">🏆 Badges</div>

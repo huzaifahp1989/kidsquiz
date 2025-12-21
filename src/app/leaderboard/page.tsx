@@ -193,8 +193,8 @@ export default function LeaderboardPage() {
             {/* Your Ranking */}
             <div className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white p-6 rounded-2xl">
               <h3 className="text-xl font-bold mb-3">👤 Your Ranking</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="text-center p-2 rounded-lg bg-white/10 sm:bg-transparent">
                   <p className="text-sm opacity-90 mb-1">Your Rank</p>
                   <p className="text-4xl font-bold">{
                     (() => {
@@ -203,15 +203,15 @@ export default function LeaderboardPage() {
                     })()
                   }</p>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-2 rounded-lg bg-white/10 sm:bg-transparent">
                   <p className="text-sm opacity-90 mb-1">Your Points</p>
                   <p className="text-4xl font-bold">{
                     activeTab === 'weekly' ? (profile?.weeklyPoints ?? profile?.points ?? 0) : (profile?.monthlyPoints ?? profile?.points ?? 0)
                   }</p>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-2 rounded-lg bg-white/10 sm:bg-transparent">
                   <p className="text-sm opacity-90 mb-1">Your Level</p>
-                  <p className="text-2xl font-bold">{profile?.level ?? 'Beginner'}</p>
+                  <p className="text-2xl font-bold mt-1">{profile?.level ?? 'Beginner'}</p>
                 </div>
               </div>
             </div>

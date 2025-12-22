@@ -65,22 +65,36 @@ export async function awardPoints(
   points: number
 ): Promise<AwardPointsResponse> {
   try {
-    // Validate user is authenticated
+    // CRITICAL: Verify user is authenticated BEFORE calling RPC
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser();
 
-    console.log('[awardPoints] Starting:', { points, userId: user?.id, authError })
+    console.log('[awardPoints] Starting:', { points, userId: user?.id, authError });
 
     if (authError || !user) {
-      console.error('[awardPoints] Auth failed:', authError)
+      console.error('[awardPoints] ❌ Auth failed:', authError);
+      console.error('[awardPoints] ⚠️ User must be logged in to award points');
       return {
         success: false,
-        message: 'User not authenticated',
+        message: 'You are not logged in. Please sign in again.',
         points_awarded: 0,
-      }
+      };
     }
+    
+    // Double-check session exists
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.error('[awardPoints] ❌ No active session found');
+      return {
+        success: false,
+        message: 'Session expired. Please sign in again.',
+        points_awarded: 0,
+      };
+    }
+    
+    console.log('[awardPoints] ✅ User authenticated:', user.id);
 
     // Validate points
     if (!points || points <= 0) {

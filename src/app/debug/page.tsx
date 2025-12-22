@@ -70,16 +70,38 @@ export default function DebugPage() {
   const testUpdatePoints = async () => {
     setTesting(true);
     try {
-      setTestResult('Testing award_points RPC function...');
+      // STEP 1: Verify auth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setTestResult('❌ Not logged in. Please sign in first.');
+        setTesting(false);
+        return;
+      }
+      
+      setTestResult('Testing award_points RPC function...\n\nStep 1: Checking auth...');
+      
+      // STEP 2: Test auth.uid()
+      const { data: testUid, error: testError } = await supabase.rpc('test_uid');
+      const uidTest = `\nStep 2: test_uid() => ${JSON.stringify(testUid || testError, null, 2)}`;
+      setTestResult(prev => prev + uidTest);
+      
+      if (!testUid?.is_authenticated) {
+        setTestResult(prev => prev + '\n\n❌ RPC cannot see authenticated user. Session not persisted.');
+        setTesting(false);
+        return;
+      }
+      
+      // STEP 3: Award points
+      setTestResult(prev => prev + '\n\nStep 3: Calling award_points...');
       const { data: rpcData, error: rpcError } = await supabase
         .rpc('award_points', {
           p_points: 10,
         });
 
       if (rpcError) {
-        setTestResult(`❌ award_points failed:\nCode: ${rpcError.code}\nMessage: ${rpcError.message}`);
+        setTestResult(prev => prev + `\n\n❌ award_points failed:\nCode: ${rpcError.code}\nMessage: ${rpcError.message}`);
       } else {
-        setTestResult(`✅ RPC Success:\n${JSON.stringify(rpcData, null, 2)}`);
+        setTestResult(prev => prev + `\n\n✅ RPC Success:\n${JSON.stringify(rpcData, null, 2)}`);
       }
     } catch (err: any) {
       setTestResult(`❌ Exception: ${err.message}\n${err.stack}`);

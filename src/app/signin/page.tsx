@@ -24,13 +24,33 @@ export default function SignInPage() {
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('❌ LOGIN FAILED:', error);
+        throw error;
+      }
       
       if (!data.user?.id) {
         throw new Error('Sign-in succeeded but no user ID returned');
       }
 
-      console.log('Sign-in successful, user ID:', data.user.id, 'Email:', data.user.email);
+      console.log('✅ Sign-in successful, user ID:', data.user.id, 'Email:', data.user.email);
+      
+      // CRITICAL: Verify session was stored
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log('📝 SESSION AFTER LOGIN:', {
+        hasSession: !!sessionData.session,
+        userId: sessionData.session?.user?.id,
+        expiresAt: sessionData.session?.expires_at
+      });
+      
+      if (!sessionData.session) {
+        throw new Error('Session was not persisted - check WebView localStorage settings');
+      }
+      
+      // Test RPC auth
+      const { data: testResult, error: testError } = await supabase.rpc('test_uid');
+      console.log('🔍 AUTH TEST RPC:', testResult || testError);
       
       // Just redirect home - Auth Context will load the existing profile
       router.push('/');

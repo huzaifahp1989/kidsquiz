@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS users_points (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Backfill missing audit columns if table already existed without them
+ALTER TABLE users_points
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE users_points
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 -- Enable RLS
 ALTER TABLE users_points ENABLE ROW LEVEL SECURITY;
 
@@ -139,6 +146,17 @@ BEGIN
     last_earned_date = CURRENT_DATE,
     updated_at = NOW()
   WHERE user_id = v_user_id;
+
+  -- STEP 9b: Keep legacy users table in sync for UI that still reads it
+  UPDATE users u
+  SET
+    points = up.total_points,
+    weeklypoints = up.weekly_points,
+    monthlypoints = up.monthly_points,
+    updatedat = NOW()
+  FROM users_points up
+  WHERE u.uid = v_user_id
+    AND up.user_id = v_user_id;
 
   -- STEP 10: Return success response with updated values
   -- Purpose: Provide complete feedback to client

@@ -98,9 +98,9 @@ export async function awardPoints(
       p_points: points,
     })
 
-    console.log('[awardPoints] RPC response:', { data, error })
+    console.log('[awardPoints] RPC response:', { data, error: error?.message })
 
-    if (!error && data) {
+    if (!error && data && data.success) {
       console.log('[awardPoints] RPC success, syncing users table')
       await syncUserSnapshot(user.id, {
         total_points: data.total_points,
@@ -112,7 +112,7 @@ export async function awardPoints(
     }
 
     // Fallback: direct upsert with daily cap enforcement
-    console.warn('[awardPoints] RPC failed, using fallback upsert', error?.message, error)
+    console.warn('[awardPoints] RPC unavailable or failed, using fallback upsert', error?.message)
 
     const todayStr = new Date().toISOString().slice(0, 10)
     const dailyLimit = 100

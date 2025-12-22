@@ -71,7 +71,10 @@ export async function awardPoints(
       error: authError,
     } = await supabase.auth.getUser()
 
+    console.log('[awardPoints] Starting:', { points, userId: user?.id, authError })
+
     if (authError || !user) {
+      console.error('[awardPoints] Auth failed:', authError)
       return {
         success: false,
         message: 'User not authenticated',
@@ -81,6 +84,7 @@ export async function awardPoints(
 
     // Validate points
     if (!points || points <= 0) {
+      console.error('[awardPoints] Invalid points:', points)
       return {
         success: false,
         message: 'Points must be greater than 0',
@@ -89,31 +93,39 @@ export async function awardPoints(
     }
 
     // Call the RPC function
+    console.log('[awardPoints] Calling RPC award_points with:', { p_points: points })
     const { data, error } = await supabase.rpc('award_points', {
       p_points: points,
     })
 
+    console.log('[awardPoints] RPC response:', { data, error })
+
     if (!error && data) {
+      console.log('[awardPoints] RPC success, syncing users table')
       await syncUserSnapshot(user.id, {
         total_points: data.total_points,
         weekly_points: data.weekly_points,
         monthly_points: data.monthly_points,
       })
+      console.log('[awardPoints] Complete, returning:', data)
       return data as AwardPointsResponse
     }
 
     // Fallback: direct upsert with daily cap enforcement
-    console.warn('[awardPoints] RPC failed, using fallback upsert', error?.message)
+    console.warn('[awardPoints] RPC failed, using fallback upsert', error?.message, error)
 
     const todayStr = new Date().toISOString().slice(0, 10)
     const dailyLimit = 100
 
+    console.log('[awardPoints] Fallback: checking existing row for user:', user.id)
     // Ensure row exists
     const { data: existingRow, error: fetchErr } = await supabase
       .from('users_points')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle()
+
+    console.log('[awardPoints] Fallback: existing row:', { existingRow, fetchErr })
 
     if (fetchErr) {
       console.error('[awardPoints] fallback fetch error', fetchErr)
@@ -128,7 +140,10 @@ export async function awardPoints(
     const todayPoints = isNewDay ? 0 : existingRow?.today_points ?? 0
     const newDailyTotal = todayPoints + points
 
+    console.log('[awardPoints] Fallback: daily check:', { isNewDay, todayPoints, newDailyTotal, dailyLimit })
+
     if (newDailyTotal > dailyLimit) {
+      console.warn('[awardPoints] Fallback: daily limit reached')
       return {
         success: false,
         message: 'Daily limit of 100 points reached',
@@ -142,6 +157,8 @@ export async function awardPoints(
     const weekly = (existingRow?.weekly_points ?? 0) + points
     const monthly = (existingRow?.monthly_points ?? 0) + points
 
+    console.log('[awardPoints] Fallback: upserting with:', { user_id: user.id, total, weekly, monthly, today: newDailyTotal })
+
     const { error: upsertErr } = await supabase
       .from('users_points')
       .upsert({
@@ -153,6 +170,8 @@ export async function awardPoints(
         last_earned_date: todayStr,
       })
 
+    console.log('[awardPoints] Fallback: upsert result:', { upsertErr })
+
     if (upsertErr) {
       console.error('[awardPoints] fallback upsert error', upsertErr)
       return {
@@ -162,12 +181,14 @@ export async function awardPoints(
       }
     }
 
+    console.log('[awardPoints] Fallback: syncing users table')
     await syncUserSnapshot(user.id, {
       total_points: total,
       weekly_points: weekly,
       monthly_points: monthly,
     })
 
+    console.log('[awardPoints] Fallback: complete, returning success')
     return {
       success: true,
       message: 'Points awarded successfully (fallback)',
@@ -179,7 +200,7 @@ export async function awardPoints(
       daily_limit: dailyLimit,
     }
   } catch (error) {
-    console.error('Error in awardPoints:', error)
+    console.error('[awardPoints] Exception caught:', error)
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unknown error',

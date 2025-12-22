@@ -5,6 +5,34 @@
 
 import { supabase } from './supabase'
 
+async function syncUserSnapshot(userId: string, totals: {
+  total_points?: number
+  weekly_points?: number
+  monthly_points?: number
+}) {
+  const total_points = totals.total_points ?? null
+  const weekly_points = totals.weekly_points ?? null
+  const monthly_points = totals.monthly_points ?? null
+
+  if (total_points === null && weekly_points === null && monthly_points === null) {
+    return
+  }
+
+  const updates: Record<string, number> = {}
+  if (total_points !== null) updates.points = total_points
+  if (weekly_points !== null) updates.weeklypoints = weekly_points
+  if (monthly_points !== null) updates.monthlypoints = monthly_points
+
+  const { error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('uid', userId)
+
+  if (error) {
+    console.warn('[syncUserSnapshot] failed', error.message)
+  }
+}
+
 export interface AwardPointsResponse {
   success: boolean
   message: string
@@ -65,16 +93,91 @@ export async function awardPoints(
       p_points: points,
     })
 
-    if (error) {
-      console.error('Error awarding points:', error)
+    if (!error && data) {
+      await syncUserSnapshot(user.id, {
+        total_points: data.total_points,
+        weekly_points: data.weekly_points,
+        monthly_points: data.monthly_points,
+      })
+      return data as AwardPointsResponse
+    }
+
+    // Fallback: direct upsert with daily cap enforcement
+    console.warn('[awardPoints] RPC failed, using fallback upsert', error?.message)
+
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const dailyLimit = 100
+
+    // Ensure row exists
+    const { data: existingRow, error: fetchErr } = await supabase
+      .from('users_points')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (fetchErr) {
+      console.error('[awardPoints] fallback fetch error', fetchErr)
       return {
         success: false,
-        message: error.message || 'Failed to award points',
+        message: fetchErr.message || 'Failed to award points',
         points_awarded: 0,
       }
     }
 
-    return data as AwardPointsResponse
+    const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr
+    const todayPoints = isNewDay ? 0 : existingRow?.today_points ?? 0
+    const newDailyTotal = todayPoints + points
+
+    if (newDailyTotal > dailyLimit) {
+      return {
+        success: false,
+        message: 'Daily limit of 100 points reached',
+        points_awarded: 0,
+        today_points: todayPoints,
+        daily_limit: dailyLimit,
+      }
+    }
+
+    const total = (existingRow?.total_points ?? 0) + points
+    const weekly = (existingRow?.weekly_points ?? 0) + points
+    const monthly = (existingRow?.monthly_points ?? 0) + points
+
+    const { error: upsertErr } = await supabase
+      .from('users_points')
+      .upsert({
+        user_id: user.id,
+        total_points: total,
+        weekly_points: weekly,
+        monthly_points: monthly,
+        today_points: newDailyTotal,
+        last_earned_date: todayStr,
+      })
+
+    if (upsertErr) {
+      console.error('[awardPoints] fallback upsert error', upsertErr)
+      return {
+        success: false,
+        message: upsertErr.message || 'Failed to award points',
+        points_awarded: 0,
+      }
+    }
+
+    await syncUserSnapshot(user.id, {
+      total_points: total,
+      weekly_points: weekly,
+      monthly_points: monthly,
+    })
+
+    return {
+      success: true,
+      message: 'Points awarded successfully (fallback)',
+      points_awarded: points,
+      total_points: total,
+      today_points: newDailyTotal,
+      weekly_points: weekly,
+      monthly_points: monthly,
+      daily_limit: dailyLimit,
+    }
   } catch (error) {
     console.error('Error in awardPoints:', error)
     return {

@@ -1,10 +1,18 @@
-# Daily Game Limit & Badge System Setup
+# Daily Points Limit & Badge System
 
-## What's New ✨
+## Current System ✨
 
-1. **Daily Game Limit**: Users can play **3 quizzes/games per day** (resets at midnight)
-2. **Badge System**: 1 badge earned for every **250 points** (cumulative)
-3. **Data Reset**: All user points, weekly/monthly tracking, and badges have been reset to 0
+1. **Daily Points Limit**: Users can earn up to **100 points per day** (resets at midnight)
+2. **Unlimited Plays**: Users can play **unlimited quizzes/games** - no play count restrictions
+3. **Badge System**: 1 badge earned for every **250 points** (cumulative)
+
+## Key Features
+
+- ✅ No limit on number of quizzes/games played per day
+- ✅ Points earning capped at 100 points/day
+- ✅ Daily limit resets at midnight
+- ✅ Database-level enforcement via `award_points()` RPC function
+- ✅ Points tracked across total, weekly, monthly, and daily buckets
 
 ## Implementation
 
@@ -19,31 +27,28 @@ Run this SQL in Supabase SQL Editor to apply the changes:
 
 ### Key Changes
 
-#### 1. New Database Columns
+#### 1. Database Columns
 - `badges` (INTEGER) - Total badges earned (1 per 250 points)
-- `daily_games_played` (INTEGER) - Games played today (0-3)
-- `last_game_date` (DATE) - Last day a game was played
+- `total_points` (INTEGER) - All-time points
+- `today_points` (INTEGER) - Points earned today (max 100)
+- `last_earned_date` (DATE) - Last day points were earned
 
-#### 2. New RPC Function: `add_points_with_limits(uid, points_to_add)`
+#### 2. RPC Function: `award_points(p_points)`
 This function:
-- Checks daily game limit (3 games/day)
-- Checks weekly point limit (250 points/week)
-- Automatically awards badges (every 250 points)
-- Increments daily games counter
-- Resets daily counter if date changed
+- Checks daily point limit (100 points/day)
+- Automatically resets daily counter if date changed
+- Awards points up to daily limit
+- Updates all point buckets (total, weekly, monthly, daily)
+- Returns detailed response with points awarded
 
 **Returns**:
 ```json
 {
   "success": true/false,
-  "reason": "Error message if failed",
   "points_awarded": 10,
-  "total_points": 100,
-  "weekly_points": 100,
-  "monthly_points": 100,
-  "badges_earned": 0,
-  "games_played_today": 1,
-  "games_remaining": 2
+  "total_points": 110,
+  "today_points": 10,
+  "reason": "Daily limit reached" (if applicable)
 }
 ```
 

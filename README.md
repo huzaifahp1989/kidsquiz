@@ -4,15 +4,15 @@ A fun, safe, and educational Islamic learning platform for children aged 5-14.
 
 ## Features
 
-- 🎮 Islamic Games (Matching, Memory, Quiz)
-- 📝 Daily Quizzes with multiple difficulty levels
+- 🎮 Islamic Games (Matching, Memory, Quiz) - **Unlimited Plays!**
+- 📝 Daily Quizzes with multiple difficulty levels - **Play as much as you want!**
 - 📖 Quran Learning with meanings and facts
 - 📜 Hadith Learning with practical examples
-- ⭐ Points & Rewards System
-- 🏆 Weekly/Monthly Leaderboards
+- ⭐ Points & Rewards System - **Earn up to 100 points daily**
+- 🏆 Badge System - **1 badge per 250 points earned**
 - 👨‍👩‍👧‍👦 Parent-Safe Features
 - 📱 Mobile-First Responsive Design
-- 🔐 Secure Firebase Backend
+- 🔐 Secure Supabase Backend with RLS
 
 ## Getting Started
 

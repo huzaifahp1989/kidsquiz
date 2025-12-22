@@ -813,6 +813,22 @@ export default function GamesPage() {
 
         {!session ? (
           <div className="space-y-6">
+            {/* Daily Limit Rules */}
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">📊</div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-green-800 mb-2">Daily Points Limit Rules</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>✅ <strong>Play unlimited games</strong> - no restrictions on how many you can play!</li>
+                    <li>⭐ <strong>Earn up to 100 points per day</strong> - points vary by game difficulty</li>
+                    <li>🔄 <strong>Resets at midnight</strong> - come back tomorrow to earn 100 more points</li>
+                    <li>🏆 <strong>Keep playing</strong> - even after reaching the limit, every game helps you learn!</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             {completion && (
               <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

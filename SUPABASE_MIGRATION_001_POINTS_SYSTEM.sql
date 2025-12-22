@@ -53,22 +53,49 @@ ALTER TABLE users_points ENABLE ROW LEVEL SECURITY;
 
 -- Policy 1: Users can SELECT (read) their own points
 -- Purpose: Allow users to view their own point balance
-CREATE POLICY "Users can view own points"
-  ON users_points FOR SELECT
-  USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'users_points' AND policyname = 'Users can view own points'
+  ) THEN
+    CREATE POLICY "Users can view own points"
+      ON users_points FOR SELECT
+      USING (auth.uid() = user_id);
+  END IF;
+END
+$$;
 
 -- Policy 2: Users can UPDATE their own points
 -- Purpose: Allow function to update user's points (direct updates blocked by function)
-CREATE POLICY "Award points RPC function"
-  ON users_points FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'users_points' AND policyname = 'Award points RPC function'
+  ) THEN
+    CREATE POLICY "Award points RPC function"
+      ON users_points FOR UPDATE
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END
+$$;
 
 -- Policy 3: System can INSERT new point records
 -- Purpose: Allow creating new user point records
-CREATE POLICY "System can create points records"
-  ON users_points FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'users_points' AND policyname = 'System can create points records'
+  ) THEN
+    CREATE POLICY "System can create points records"
+      ON users_points FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END
+$$;
 
 -- ============================================================================
 -- RPC FUNCTION: award_points

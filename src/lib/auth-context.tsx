@@ -13,8 +13,9 @@ type KidProfile = {
   points: number;
   weeklyPoints?: number;
   monthlyPoints?: number;
+  todayPoints?: number;
+  dailyLimit?: number;
   badges?: number;
-  dailyGamesPlayed?: number;
   gamesRemaining?: number;
   level: string;
 };
@@ -39,6 +40,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [profile, setProfile] = useState<KidProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const dailyLimit = 100;
+
+  const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
+    const todayPoints = pointsRow?.today_points ?? 0;
+    const points = pointsRow?.total_points ?? userRow.points ?? 0;
+    const weeklyPoints = pointsRow?.weekly_points ?? userRow.weeklypoints ?? 0;
+    const monthlyPoints = pointsRow?.monthly_points ?? userRow.monthlypoints ?? 0;
+    return {
+      uid: userRow.uid,
+      role: userRow.role,
+      name: userRow.name,
+      age: userRow.age,
+      email: userRow.email,
+      points,
+      weeklyPoints,
+      monthlyPoints,
+      todayPoints,
+      dailyLimit,
+      badges: userRow.badges || 0,
+      gamesRemaining: Math.max(0, dailyLimit - todayPoints),
+      level: userRow.level,
+    };
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -112,24 +136,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Profile fetch error:', error.message);
         setProfile(null);
       } else if (data) {
-        console.log('Profile raw data:', data);
-        const dailyGamesPlayed = data.daily_games_played || 0;
-        const profile: KidProfile = {
-          uid: data.uid,
-          role: data.role,
-          name: data.name,
-          age: data.age,
-          email: data.email,
-          points: data.points || 0,
-          weeklyPoints: data.weeklypoints || 0,
-          monthlyPoints: data.monthlypoints || 0,
-          badges: data.badges || 0,
-          dailyGamesPlayed: dailyGamesPlayed,
-          gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
-          level: data.level,
-        };
-        console.log('Profile mapped:', profile);
-        setProfile(profile);
+        const { data: pointsRow, error: pointsError } = await supabase
+          .from('users_points')
+          .select('total_points, weekly_points, monthly_points, today_points')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (pointsError) {
+          console.warn('users_points fetch error:', pointsError.message);
+        }
+
+        const mapped = mapProfile(data, pointsRow);
+        console.log('Profile mapped:', mapped);
+        setProfile(mapped);
       } else {
         console.log('No profile data found for user; ensuring default profile');
         const created = await ensureUserProfile(user.id);
@@ -140,22 +159,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .eq('uid', user.id)
             .maybeSingle();
           if (refetched) {
-            const dailyGamesPlayed = refetched.daily_games_played || 0;
-            const profile: KidProfile = {
-              uid: refetched.uid,
-              role: refetched.role,
-              name: refetched.name,
-              age: refetched.age,
-              email: refetched.email,
-              points: refetched.points || 0,
-              weeklyPoints: refetched.weeklypoints || 0,
-              monthlyPoints: refetched.monthlypoints || 0,
-              badges: refetched.badges || 0,
-              dailyGamesPlayed: dailyGamesPlayed,
-              gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
-              level: refetched.level,
-            };
-            setProfile(profile);
+            const { data: pointsRow, error: pointsError } = await supabase
+              .from('users_points')
+              .select('total_points, weekly_points, monthly_points, today_points')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            if (pointsError) {
+              console.warn('users_points fetch error after ensure:', pointsError.message);
+            }
+
+            const mapped = mapProfile(refetched, pointsRow);
+            setProfile(mapped);
           } else {
             setProfile(null);
           }
@@ -182,23 +197,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Real-time update received:', payload);
         const newRow = payload.new ?? payload.old;
         if (newRow) {
-          const dailyGamesPlayed = newRow.daily_games_played || 0;
-          const updatedProfile: KidProfile = {
-            uid: newRow.uid,
-            role: newRow.role,
-            name: newRow.name,
-            age: newRow.age,
-            email: newRow.email,
-            points: newRow.points || 0,
-            weeklyPoints: newRow.weeklypoints || 0,
-            monthlyPoints: newRow.monthlypoints || 0,
-            badges: newRow.badges || 0,
-            dailyGamesPlayed: dailyGamesPlayed,
-            gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
-            level: newRow.level,
-          };
-          console.log('Updated profile from real-time:', updatedProfile);
-          setProfile(updatedProfile);
+          setProfile(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              uid: newRow.uid,
+              role: newRow.role,
+              name: newRow.name,
+              age: newRow.age,
+              email: newRow.email,
+              badges: newRow.badges || prev.badges,
+              level: newRow.level,
+            };
+          });
         }
       })
       .subscribe();
@@ -221,23 +232,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.error('Profile refresh error:', error.message);
     } else if (data) {
-      const dailyGamesPlayed = data.daily_games_played || 0;
-      const profile: KidProfile = {
-        uid: data.uid,
-        role: data.role,
-        name: data.name,
-        age: data.age,
-        email: data.email,
-        points: data.points || 0,
-        weeklyPoints: data.weeklypoints || 0,
-        monthlyPoints: data.monthlypoints || 0,
-        badges: data.badges || 0,
-        dailyGamesPlayed: dailyGamesPlayed,
-        gamesRemaining: Math.max(0, 3 - dailyGamesPlayed),
-        level: data.level,
-      };
-      console.log('Profile refreshed:', profile);
-      setProfile(profile);
+      const { data: pointsRow, error: pointsError } = await supabase
+        .from('users_points')
+        .select('total_points, weekly_points, monthly_points, today_points')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (pointsError) {
+        console.warn('users_points fetch error on refresh:', pointsError.message);
+      }
+
+      const mapped = mapProfile(data, pointsRow);
+      console.log('Profile refreshed:', mapped);
+      setProfile(mapped);
     }
   };
 

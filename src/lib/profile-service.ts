@@ -9,6 +9,8 @@ export interface KidProfile {
   points: number;
   weeklyPoints: number;
   monthlyPoints: number;
+  todayPoints?: number;
+  dailyLimit?: number;
   badges: number;
   gamesRemaining: number;
   level: string;
@@ -16,28 +18,28 @@ export interface KidProfile {
   updatedAt: string;
 }
 
-function mapUser(row: any): KidProfile {
-  const dailyGames = row.daily_games_played ?? 0;
-  // Calculate games remaining (default 3)
-  // Note: accurate calculation requires last_game_date check against today, 
-  // but for simple mapping we rely on what DB returns or default.
-  // Ideally the DB view or query returns 'games_remaining' or we calculate it.
-  // For now, we'll map raw data.
-  const limit = 3;
-  // Simple client-side check if needed, but better if DB resets it.
-  // We'll assume row.daily_games_played is accurate for today if updated recently.
-  
+function mapUser(row: any, pointsRow?: any): KidProfile {
+  const dailyLimit = 100;
+  const todayPoints = pointsRow?.today_points ?? 0;
+  const remaining = Math.max(0, dailyLimit - todayPoints);
+
+  const totalPoints = pointsRow?.total_points ?? row.points ?? 0;
+  const weeklyPoints = pointsRow?.weekly_points ?? row.weeklyPoints ?? row.weeklypoints ?? 0;
+  const monthlyPoints = pointsRow?.monthly_points ?? row.monthlyPoints ?? row.monthlypoints ?? 0;
+
   return {
     uid: row.uid,
     email: row.email,
     name: row.name,
     age: row.age,
     role: row.role,
-    points: row.points ?? 0,
-    weeklyPoints: row.weeklyPoints ?? row.weeklypoints ?? 0,
-    monthlyPoints: row.monthlyPoints ?? row.monthlypoints ?? 0,
+    points: totalPoints,
+    weeklyPoints,
+    monthlyPoints,
+    todayPoints,
+    dailyLimit,
     badges: row.badges ?? 0,
-    gamesRemaining: Math.max(0, limit - dailyGames),
+    gamesRemaining: remaining,
     level: row.level ?? 'Beginner',
     createdAt: row.createdAt ?? row.createdat ?? '',
     updatedAt: row.updatedAt ?? row.updatedat ?? '',
@@ -60,7 +62,17 @@ export async function getProfile(uid: string): Promise<KidProfile | null> {
       return null;
     }
 
-    return data ? mapUser(data) : null;
+    const { data: pointsRow, error: pointsError } = await supabase
+      .from('users_points')
+      .select('total_points, weekly_points, monthly_points, today_points')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (pointsError) {
+      console.warn('[getProfile] Could not fetch users_points row:', pointsError.message);
+    }
+
+    return data ? mapUser(data, pointsRow) : null;
   } catch (err) {
     console.error('[getProfile] Unexpected error:', err);
     return null;
@@ -100,8 +112,18 @@ export async function createProfile(
       return null;
     }
 
+    const { data: pointsRow, error: pointsError } = await supabase
+      .from('users_points')
+      .select('total_points, weekly_points, monthly_points, today_points')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (pointsError) {
+      console.warn('[createProfile] users_points row missing, will be auto-created on award:', pointsError.message);
+    }
+
     console.log('[createProfile] Profile created successfully:', uid);
-    return data ? mapUser(data) : null;
+    return data ? mapUser(data, pointsRow) : null;
   } catch (err) {
     console.error('[createProfile] Unexpected error:', err);
     return null;
@@ -113,61 +135,24 @@ export async function createProfile(
  */
 export async function addPoints(uid: string, pointsToAdd: number): Promise<KidProfile | null> {
   try {
-    console.log('[addPoints] Adding points:', { uid, pointsToAdd });
-    
-    // First try using the RPC function (respects limits and updates daily_games_played)
+    console.log('[addPoints] Adding points via award_points:', { uid, pointsToAdd });
+
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !user || user.id !== uid) {
+      console.error('[addPoints] Auth mismatch or missing user for uid:', uid, authErr);
+      return null;
+    }
+
     const { data: rpcData, error: rpcError } = await supabase
-      .rpc('add_points', {
-        p_uid: uid,
-        p_points_to_add: pointsToAdd,
-      });
+      .rpc('award_points', { p_points: pointsToAdd });
 
-    if (!rpcError && rpcData && rpcData.success !== false) {
-      console.log('[addPoints] RPC success:', rpcData);
-      // Fetch updated profile
-      const profile = await getProfile(uid);
-      return profile;
+    if (rpcError || !rpcData || rpcData.success === false) {
+      console.error('[addPoints] award_points failed:', rpcError || rpcData);
+      return null;
     }
 
-    console.warn('[addPoints] RPC failed, using direct update:', { rpcError, rpcData });
-
-    // Fallback: Direct update (for when RPC is not available)
     const profile = await getProfile(uid);
-    if (!profile) {
-      console.error('[addPoints] Profile not found for uid:', uid);
-      return null;
-    }
-
-    const newPoints = profile.points + pointsToAdd;
-    const newWeekly = (profile.weeklyPoints ?? 0) + pointsToAdd;
-    const newMonthly = (profile.monthlyPoints ?? 0) + pointsToAdd;
-    const newBadges = Math.floor(newPoints / 250);
-
-    // Calculate level based on new points
-    const newLevel = calculateLevel(newPoints);
-
-    // Update profile directly (requires proper RLS policy)
-    const { data, error } = await supabase
-      .from('users')
-      .update({
-        points: newPoints,
-        weeklypoints: newWeekly,
-        monthlypoints: newMonthly,
-        badges: newBadges,
-        level: newLevel,
-        updatedat: new Date().toISOString(),
-      })
-      .eq('uid', uid)
-      .select('uid,email,name,age,role,points,weeklypoints,monthlypoints,badges,daily_games_played,level,createdat,updatedat')
-      .maybeSingle();
-
-    if (error) {
-      console.error('[addPoints] Error updating points:', error);
-      return null;
-    }
-
-    console.log('[addPoints] Points updated (direct):', { uid, pointsToAdd, newPoints });
-    return data ? mapUser(data) : null;
+    return profile;
   } catch (err) {
     console.error('[addPoints] Unexpected error:', err);
     return null;

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { addPoints as addPointsFallback } from '@/lib/profile-service';
+import { awardPoints as awardPointsRpc } from '@/lib/points-service';
 import {
   Difficulty,
   Option,
@@ -536,7 +536,7 @@ export default function GamesPage() {
     }
   };
 
-  const awardPoints = async (base: number, projectedStreak: number) => {
+  const awardPointsForGame = async (base: number, projectedStreak: number) => {
     if (!user?.id) {
       setToast('Please sign in to earn points');
       setTimeout(() => setToast(null), 2200);
@@ -548,58 +548,33 @@ export default function GamesPage() {
     setComboActive(combo);
     setLoading(true);
 
-    const rpcName = 'add_points';
+    try {
+      console.info('[games] awarding via award_points', { uid: user.id, totalEarned });
+      const result = await awardPointsRpc(totalEarned);
 
-    const handleSuccess = () => {
-      applyPointGain(totalEarned);
-      setToast(`⭐ +${totalEarned} points${combo ? ' (2x combo!)' : ''}${devMode ? ' [Dev Mode]' : ''}`);
+      if (!result.success) {
+        const today = result.today_points ?? 0;
+        const limit = result.daily_limit ?? 100;
+        setToast(`⚠️ ${result.message || 'Daily limit reached'} (${today}/${limit} today)`);
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+
+      const awarded = result.points_awarded ?? totalEarned;
+      applyPointGain(awarded);
+      const today = result.today_points ?? 0;
+      const limit = result.daily_limit ?? 100;
+      setToast(`⭐ +${awarded} points${combo ? ' (2x combo!)' : ''}${devMode ? ' [Dev Mode]' : ''} · ${today}/${limit} today`);
       setPointsSaved(true);
       setTimeout(() => setToast(null), 2500);
       setTimeout(() => setPointsSaved(false), 2500);
-    };
-
-    try {
-      console.info('[games] awarding via RPC', { rpcName, uid: user.id, totalEarned });
-      const { data, error } = await supabase.rpc(rpcName, {
-        p_uid: user.id,
-        p_points_to_add: totalEarned,
-      });
-
-      if (!error && data && data.success !== false) {
-        console.info('[games] RPC success', data);
-        handleSuccess();
-        await refreshProfile();
-        return;
-      }
-
-      console.warn('[games] RPC failed, falling back', { error, data });
-      const rpcReason = error?.message || data?.reason || 'unknown error';
-
-      // Fallback: direct update via profile-service (respects RLS)
-      console.info('[games] fallback addPoints', { uid: user.id, totalEarned });
-      const fallbackProfile = await addPointsFallback(user.id, totalEarned);
-      if (fallbackProfile) {
-        console.info('[games] fallback success', fallbackProfile);
-        handleSuccess();
-        await refreshProfile();
-        return;
-      }
-
-      setToast(`⚠️ Points not saved (${rpcReason}). Complete your profile first.`);
-      setTimeout(() => setToast(null), 3000);
+      await refreshProfile();
+      return;
     } catch (err: any) {
-      console.error('[games] awardPoints error', err);
-      console.info('[games] fallback after error', { uid: user?.id, totalEarned });
-      const fallbackProfile = await addPointsFallback(user.id, totalEarned);
-      if (fallbackProfile) {
-        console.info('[games] fallback success after error', fallbackProfile);
-        handleSuccess();
-        await refreshProfile();
-      } else {
-        const msg = err?.message || 'unexpected error';
-        setToast(`⚠️ Points not saved (${msg}). Complete your profile first.`);
-        setTimeout(() => setToast(null), 3000);
-      }
+      console.error('[games] award_points error', err);
+      const msg = err?.message || 'unexpected error';
+      setToast(`⚠️ Points not saved (${msg}). Try again.`);
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setLoading(false);
     }
@@ -636,7 +611,7 @@ export default function GamesPage() {
     const projectedStreak = correct ? correctStreak + 1 : 0;
     
     if (correct) {
-      await awardPoints(currentTask.points, projectedStreak);
+      await awardPointsForGame(currentTask.points, projectedStreak);
       setFeedback('🎉 Correct!');
     } else {
       const correctText = currentTask.options.find(o => o.id === currentTask.correctOptionId)?.text || 'Unknown';
@@ -664,7 +639,7 @@ export default function GamesPage() {
     const projectedStreak = correct ? correctStreak + 1 : 0;
     
     if (correct) {
-      await awardPoints(currentTask.points, projectedStreak);
+      await awardPointsForGame(currentTask.points, projectedStreak);
       setFeedback('Matched perfectly! MashaAllah!');
     } else {
       setFeedback('Some matches were incorrect. Review the answers.');
@@ -690,7 +665,7 @@ export default function GamesPage() {
     const projectedStreak = correct ? correctStreak + 1 : 0;
     
     if (correct) {
-      await awardPoints(currentTask.points, projectedStreak);
+      await awardPointsForGame(currentTask.points, projectedStreak);
       setFeedback('Timeline locked correctly! Well done.');
     } else {
       setFeedback('The order is not quite right. Keep learning!');
@@ -712,7 +687,7 @@ export default function GamesPage() {
       return;
     }
     const projectedStreak = correctStreak + 1;
-    await awardPoints(4, projectedStreak);
+    await awardPointsForGame(4, projectedStreak);
     adjustDifficulty(true);
     setFeedback('Great search! Ready for the next challenge.');
     

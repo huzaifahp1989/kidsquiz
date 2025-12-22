@@ -6,8 +6,7 @@ import { Button, Modal } from '@/components';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { calculateLevel } from '@/lib/utils';
-import { addPoints as addPointsFallback } from '@/lib/profile-service';
+import { awardPoints as awardPointsRpc } from '@/lib/points-service';
 
 // Seeded random number generator for daily quiz rotation
 const seededRandom = (seed: number) => {
@@ -38,7 +37,7 @@ export default function QuizPage() {
   const [hasAwarded, setHasAwarded] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
-  const { user, profile, refreshProfile, logout } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
   // Get daily seed based on current date
   const dailySeed = useMemo(() => {
@@ -142,75 +141,48 @@ export default function QuizPage() {
 
     let cancelled = false;
     (async () => {
-      console.log('[quiz] Awarding points for user:', user.id, 'score:', score);
-      
-      // Use the database function to add points
-      const { data, error } = await supabase
-        .rpc('add_points', {
-          p_uid: user.id,
-          p_points_to_add: score,
-        });
+      console.log('[quiz] Awarding points for user via award_points:', user.id, 'score:', score);
 
-      console.log('[quiz] Database response:', { data, error });
+      const result = await awardPointsRpc(score);
 
       if (cancelled) return;
 
       setHasAwarded(true);
-      
-      const handleSuccess = async (awarded: number) => {
-        const pointsAwarded = awarded;
-        const badgesEarned = data?.badges_earned ?? 0;
 
-        let toastMsg = `⭐ +${pointsAwarded} points!`;
-        if (badgesEarned > 0) {
-          toastMsg += ` 🏆 ${badgesEarned} badge(s)!`;
-        }
-
-        setResultToast(toastMsg);
-
-        const { error: markError } = await supabase
-          .rpc('mark_quiz_completed', {
-            uid: user.id,
-            category: category,
-            score_val: score,
-          });
-
-        if (markError) {
-          console.error('[quiz] Error marking completion:', markError);
-        } else {
-          setCompletedQuizzes(prev => [...new Set([...prev, category])]);
-        }
-
-        await refreshProfile();
-      };
-
-      if (error) {
-        console.error('[quiz] RPC failed:', error);
-        const message = error?.message || 'Could not award points.';
-        if (message.toLowerCase().includes('invalid refresh token')) {
-          setResultToast('⚠️ Session expired. Please sign in again.');
-          await logout?.();
-          return;
-        }
-
-        // Fallback: direct update via profile-service
-        const fallback = await addPointsFallback(user.id, score);
-        if (fallback) {
-          await handleSuccess(score);
-        } else {
-          setResultToast(`⚠️ Could not award points (${message}). Please complete your profile first.`);
-        }
-      } else if (data && !data.success) {
-        setResultToast(`⚠️ ${data.reason}`);
-      } else if (data && data.success) {
-        await handleSuccess(data.points_awarded || score);
+      if (!result.success) {
+        const today = result.today_points ?? 0;
+        const limit = result.daily_limit ?? 100;
+        setResultToast(`⚠️ ${result.message || 'Daily limit reached'} (${today}/${limit} today).`);
+        return;
       }
+
+      const pointsAwarded = result.points_awarded || score;
+      const today = result.today_points ?? pointsAwarded;
+      const limit = result.daily_limit ?? 100;
+      let toastMsg = `⭐ +${pointsAwarded} points! (${today}/${limit} today)`;
+
+      setResultToast(toastMsg);
+
+      const { error: markError } = await supabase
+        .rpc('mark_quiz_completed', {
+          uid: user.id,
+          category: category,
+          score_val: score,
+        });
+
+      if (markError) {
+        console.error('[quiz] Error marking completion:', markError);
+      } else {
+        setCompletedQuizzes(prev => [...new Set([...prev, category])]);
+      }
+
+      await refreshProfile();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile, logout, category]);
+  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile, category]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white py-8 px-4">
@@ -288,7 +260,7 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">🕌</div>
                       <h3 className="text-2xl font-bold text-sky-700 mb-2">Seerah</h3>
                       <p className="text-gray-700 mb-2">Life of Prophet Muhammad ﷺ</p>
-                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)</p>
                     </div>
                     {completedQuizzes.includes('Seerah') && (
                       <div className="flex flex-col items-center">
@@ -314,7 +286,7 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">📖</div>
                       <h3 className="text-2xl font-bold text-yellow-700 mb-2">Hadith</h3>
                       <p className="text-gray-700 mb-2">Sayings of the Prophet ﷺ</p>
-                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)</p>
                     </div>
                     {completedQuizzes.includes('Hadith') && (
                       <div className="flex flex-col items-center">
@@ -340,7 +312,7 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">⭐</div>
                       <h3 className="text-2xl font-bold text-purple-700 mb-2">Prophets / Ambiya</h3>
                       <p className="text-gray-700 mb-2">Stories of the Prophets</p>
-                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)</p>
                     </div>
                     {completedQuizzes.includes('Prophets') && (
                       <div className="flex flex-col items-center">
@@ -366,7 +338,7 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">📕</div>
                       <h3 className="text-2xl font-bold text-blue-700 mb-2">Qur'an Stories</h3>
                       <p className="text-gray-700 mb-2">Stories from the Qur'an</p>
-                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)</p>
                     </div>
                     {completedQuizzes.includes('Quran Stories') && (
                       <div className="flex flex-col items-center">
@@ -392,7 +364,7 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">💖</div>
                       <h3 className="text-2xl font-bold text-pink-700 mb-2">Akhlaq</h3>
                       <p className="text-gray-700 mb-2">Islamic Manners & Character</p>
-                      <p className="text-sm text-gray-600">10 questions • 1 point each</p>
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)
                     </div>
                     {completedQuizzes.includes('Akhlaq') && (
                       <div className="flex flex-col items-center">

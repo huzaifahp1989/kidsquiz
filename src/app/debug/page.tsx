@@ -70,35 +70,14 @@ export default function DebugPage() {
   const testUpdatePoints = async () => {
     setTesting(true);
     try {
-      // First test using the RPC function
-      setTestResult('Testing add_points RPC function...');
+      setTestResult('Testing award_points RPC function...');
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('add_points', {
-          p_uid: user?.id,
-          p_points_to_add: 10,
+        .rpc('award_points', {
+          p_points: 10,
         });
 
       if (rpcError) {
-        setTestResult(`❌ RPC failed:\nCode: ${rpcError.code}\nMessage: ${rpcError.message}\n\nTrying direct update...`);
-        
-        // Fallback to direct update
-        const newPoints = (profile?.points ?? 0) + 10;
-        const { data, error } = await supabase
-          .from('users')
-          .update({ 
-            points: newPoints,
-            weeklypoints: (profile?.weeklyPoints ?? 0) + 10,
-            monthlypoints: (profile?.monthlyPoints ?? 0) + 10,
-            updatedat: new Date().toISOString(),
-          })
-          .eq('uid', user?.id)
-          .select();
-        
-        if (error) {
-          setTestResult(prev => prev + `\n❌ Direct update also failed:\nCode: ${error.code}\nMessage: ${error.message}\nDetails: ${error.details}`);
-        } else {
-          setTestResult(prev => prev + `\n✅ Direct update success:\n${JSON.stringify(data, null, 2)}`);
-        }
+        setTestResult(`❌ award_points failed:\nCode: ${rpcError.code}\nMessage: ${rpcError.message}`);
       } else {
         setTestResult(`✅ RPC Success:\n${JSON.stringify(rpcData, null, 2)}`);
       }

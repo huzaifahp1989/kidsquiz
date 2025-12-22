@@ -70,23 +70,88 @@ export default function DebugPage() {
   const testUpdatePoints = async () => {
     setTesting(true);
     try {
-      const newPoints = (profile?.points ?? 0) + 10;
-      const { data, error } = await supabase
-        .from('users')
-        .update({ 
-          points: newPoints,
-          weeklypoints: (profile?.weeklyPoints ?? 0) + 10,
-          monthlypoints: (profile?.monthlyPoints ?? 0) + 10,
-        })
-        .eq('uid', user?.id)
-        .select();
-      if (error) {
-        setTestResult(`❌ Update failed:\nCode: ${error.code}\nMessage: ${error.message}\nDetails: ${error.details}`);
+      // First test using the RPC function
+      setTestResult('Testing add_points RPC function...');
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('add_points', {
+          p_uid: user?.id,
+          p_points_to_add: 10,
+        });
+
+      if (rpcError) {
+        setTestResult(`❌ RPC failed:\nCode: ${rpcError.code}\nMessage: ${rpcError.message}\n\nTrying direct update...`);
+        
+        // Fallback to direct update
+        const newPoints = (profile?.points ?? 0) + 10;
+        const { data, error } = await supabase
+          .from('users')
+          .update({ 
+            points: newPoints,
+            weeklypoints: (profile?.weeklyPoints ?? 0) + 10,
+            monthlypoints: (profile?.monthlyPoints ?? 0) + 10,
+            updatedat: new Date().toISOString(),
+          })
+          .eq('uid', user?.id)
+          .select();
+        
+        if (error) {
+          setTestResult(prev => prev + `\n❌ Direct update also failed:\nCode: ${error.code}\nMessage: ${error.message}\nDetails: ${error.details}`);
+        } else {
+          setTestResult(prev => prev + `\n✅ Direct update success:\n${JSON.stringify(data, null, 2)}`);
+        }
       } else {
-        setTestResult(`✅ Update success:\n${JSON.stringify(data, null, 2)}`);
+        setTestResult(`✅ RPC Success:\n${JSON.stringify(rpcData, null, 2)}`);
       }
     } catch (err: any) {
-      setTestResult(`❌ Error: ${err.message}`);
+      setTestResult(`❌ Exception: ${err.message}\n${err.stack}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const fixProfile = async () => {
+    setTesting(true);
+    try {
+      setTestResult('Fixing profile NULL values...');
+      const { data: current, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', user?.id)
+        .maybeSingle();
+
+      if (fetchError) {
+        setTestResult(`❌ Fetch failed: ${fetchError.message}`);
+        setTesting(false);
+        return;
+      }
+
+      if (!current) {
+        setTestResult('❌ Profile not found');
+        setTesting(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          points: current.points ?? 0,
+          weeklypoints: current.weeklypoints ?? 0,
+          monthlypoints: current.monthlypoints ?? 0,
+          badges: current.badges ?? 0,
+          daily_games_played: current.daily_games_played ?? 0,
+          last_game_date: current.last_game_date ?? new Date().toISOString().split('T')[0],
+          level: current.level ?? 'Beginner',
+          updatedat: new Date().toISOString(),
+        })
+        .eq('uid', user?.id);
+
+      if (updateError) {
+        setTestResult(`❌ Fix failed: ${updateError.message}`);
+      } else {
+        setTestResult('✅ Profile fixed! All NULL values reset to defaults.');
+      }
+    } catch (err: any) {
+      setTestResult(`❌ Exception: ${err.message}`);
     } finally {
       setTesting(false);
     }
@@ -159,14 +224,21 @@ export default function DebugPage() {
               disabled={!user?.id || testing}
               className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-300 text-sm font-semibold"
             >
-              {testing ? '...' : '⭐ Add 10 Points'}
+              {testing ? '...' : '⭐ Test Add Points (+10)'}
+            </button>
+            <button
+              onClick={fixProfile}
+              disabled={!user?.id || testing}
+              className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:bg-gray-300 text-sm font-semibold"
+            >
+              {testing ? '...' : '🔧 Fix Profile NULLs'}
             </button>
             <button
               onClick={testSignOut}
               disabled={!user?.id || testing}
-              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-300 text-sm font-semibold"
+              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-300 text-sm font-semibold col-span-2"
             >
-              {testing ? '...' : '🚪 Sign Out'}
+              {testing ? '...' : '🚪 Sign Out & Clear Session'}
             </button>
           </div>
         </div>

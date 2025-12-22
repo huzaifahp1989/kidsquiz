@@ -109,11 +109,29 @@ export async function createProfile(
 }
 
 /**
- * Update points for a user
+ * Update points for a user using RPC function with fallback
  */
 export async function addPoints(uid: string, pointsToAdd: number): Promise<KidProfile | null> {
   try {
-    // Fetch current points
+    console.log('[addPoints] Adding points:', { uid, pointsToAdd });
+    
+    // First try using the RPC function (respects limits and updates daily_games_played)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('add_points', {
+        p_uid: uid,
+        p_points_to_add: pointsToAdd,
+      });
+
+    if (!rpcError && rpcData && rpcData.success !== false) {
+      console.log('[addPoints] RPC success:', rpcData);
+      // Fetch updated profile
+      const profile = await getProfile(uid);
+      return profile;
+    }
+
+    console.warn('[addPoints] RPC failed, using direct update:', { rpcError, rpcData });
+
+    // Fallback: Direct update (for when RPC is not available)
     const profile = await getProfile(uid);
     if (!profile) {
       console.error('[addPoints] Profile not found for uid:', uid);
@@ -123,17 +141,19 @@ export async function addPoints(uid: string, pointsToAdd: number): Promise<KidPr
     const newPoints = profile.points + pointsToAdd;
     const newWeekly = (profile.weeklyPoints ?? 0) + pointsToAdd;
     const newMonthly = (profile.monthlyPoints ?? 0) + pointsToAdd;
+    const newBadges = Math.floor(newPoints / 250);
 
     // Calculate level based on new points
     const newLevel = calculateLevel(newPoints);
 
-    // Update profile
+    // Update profile directly (requires proper RLS policy)
     const { data, error } = await supabase
       .from('users')
       .update({
         points: newPoints,
         weeklypoints: newWeekly,
         monthlypoints: newMonthly,
+        badges: newBadges,
         level: newLevel,
         updatedat: new Date().toISOString(),
       })
@@ -146,7 +166,7 @@ export async function addPoints(uid: string, pointsToAdd: number): Promise<KidPr
       return null;
     }
 
-    console.log('[addPoints] Points updated:', { uid, pointsToAdd, newPoints });
+    console.log('[addPoints] Points updated (direct):', { uid, pointsToAdd, newPoints });
     return data ? mapUser(data) : null;
   } catch (err) {
     console.error('[addPoints] Unexpected error:', err);

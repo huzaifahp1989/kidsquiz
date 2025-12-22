@@ -821,9 +821,9 @@ export default function GamesPage() {
                   <p className="text-sm font-bold text-green-800 mb-2">Daily Points Limit Rules</p>
                   <ul className="text-sm text-gray-700 space-y-1">
                     <li>✅ <strong>Play unlimited games</strong> - no restrictions on how many you can play!</li>
-                    <li>⭐ <strong>Earn up to 100 points per day</strong> - points vary by game difficulty</li>
-                    <li>🔄 <strong>Resets at midnight</strong> - come back tomorrow to earn 100 more points</li>
-                    <li>🏆 <strong>Keep playing</strong> - even after reaching the limit, every game helps you learn!</li>
+                    <li>⭐ <strong>Earn up to 100 points per day</strong> - points vary by game difficulty and performance</li>
+                    <li>🔄 <strong>Games refresh weekly</strong> - new randomized content every week with daily variations!</li>
+                    <li>🕛 <strong>Points reset at midnight</strong> - come back tomorrow to earn 100 more points</li>
                   </ul>
                 </div>
               </div>

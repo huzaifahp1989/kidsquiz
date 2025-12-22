@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { quizzes } from '@/data/quizzes';
 import { Button, Modal } from '@/components';
 import { CheckCircle, XCircle } from 'lucide-react';
@@ -8,6 +8,21 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { calculateLevel } from '@/lib/utils';
 import { addPoints as addPointsFallback } from '@/lib/profile-service';
+
+// Seeded random number generator for daily quiz rotation
+const seededRandom = (seed: number) => {
+  let x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+};
+
+const shuffleArray = <T,>(array: T[], seed: number): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRandom(seed + i) * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
 
 export default function QuizPage() {
   const [category, setCategory] = useState<'Seerah' | 'Hadith' | 'Prophets' | 'Quran Stories' | 'Akhlaq' | ''>('');
@@ -25,8 +40,20 @@ export default function QuizPage() {
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
   const { user, profile, refreshProfile, logout } = useAuth();
 
+  // Get daily seed based on current date
+  const dailySeed = useMemo(() => {
+    const today = new Date();
+    return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  }, []);
+
+  // Select 5 random questions from category based on daily seed
   const filteredQuestions = quizzes.filter(q => q.category === category);
-  const currentQuestions = filteredQuestions;
+  const currentQuestions = useMemo(() => {
+    if (!category) return [];
+    const shuffled = shuffleArray(filteredQuestions, dailySeed + category.charCodeAt(0));
+    return shuffled.slice(0, 5); // Only take 5 questions
+  }, [category, dailySeed, filteredQuestions]);
+  
   const currentQuestion = currentQuestions[currentQuestionIndex];
 
   const handleSelectAnswer = (answerIndex: number) => {
@@ -35,7 +62,7 @@ export default function QuizPage() {
     setShowExplanation(true);
 
     if (answerIndex === currentQuestion.correctAnswer) {
-      setScore(score + currentQuestion.points);
+      setScore(score + 2); // 2 points per correct answer
     }
     setAnsweredCount(answeredCount + 1);
   };
@@ -210,13 +237,13 @@ export default function QuizPage() {
           </div>
           <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-islamic-blue rounded-lg p-4 mt-4">
             <p className="text-sm font-semibold text-islamic-dark mb-1">
-              🎯 Points System: 1 point per correct answer | 10 questions per quiz = 10 points max
+              🎯 Points System: 2 points per correct answer | 5 questions per quiz = 10 points max
             </p>
             <p className="text-sm text-gray-700">
               ⭐ Daily Points: Earn up to 100 points per day (resets at midnight)
             </p>
             <p className="text-xs text-gray-600 mt-2">
-              🏆 Earn 1 badge every 250 points! Play unlimited quizzes.
+              🏆 Questions change daily! Play unlimited quizzes and earn 1 badge per 250 points.
             </p>
           </div>
           
@@ -228,9 +255,9 @@ export default function QuizPage() {
                 <p className="text-sm font-bold text-green-800 mb-2">Daily Points Limit Rules</p>
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li>✅ <strong>Play unlimited quizzes</strong> - no restrictions on how many you can take!</li>
-                  <li>⭐ <strong>Earn up to 100 points per day</strong> - 1 point per correct answer</li>
-                  <li>🔄 <strong>Resets at midnight</strong> - come back tomorrow to earn 100 more points</li>
-                  <li>🏆 <strong>Keep learning</strong> - even after reaching the limit, practice makes perfect!</li>
+                  <li>⭐ <strong>Earn up to 100 points per day</strong> - 2 points per correct answer (5 questions/quiz)</li>
+                  <li>🔄 <strong>Questions change daily</strong> - new random questions every day!</li>
+                  <li>🕛 <strong>Resets at midnight</strong> - come back tomorrow to earn 100 more points</li>
                 </ul>
               </div>
             </div>

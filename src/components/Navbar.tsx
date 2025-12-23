@@ -56,8 +56,12 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
               
               {onLogout ? (
                 <button
-                  onClick={onLogout}
-                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    console.log('Desktop logout clicked');
+                    if (onLogout) await onLogout();
+                  }}
+                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition active:scale-95"
                 >
                   <LogOut size={18} />
                   <span className="text-sm">Logout</span>
@@ -128,11 +132,15 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
                   
                   {onLogout && (
                     <button
-                      onClick={() => {
-                        onLogout();
-                        setIsMenuOpen(false);
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        console.log('Mobile logout clicked');
+                        if (onLogout) {
+                          await onLogout();
+                          setIsMenuOpen(false);
+                        }
                       }}
-                      className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition"
+                      className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition active:scale-95"
                     >
                       <LogOut size={18} />
                       <span className="text-sm">Logout</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 
@@ -12,7 +12,7 @@ export default function LeaderboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const { profile } = useAuth();
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     const orderField = activeTab === 'weekly' ? 'weeklypoints' : 'monthlypoints';
     const { data, error } = await supabase
       .from('users')
@@ -30,11 +30,12 @@ export default function LeaderboardPage() {
       }));
       setEntries(list);
     }
-  };
+  }, [activeTab]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLeaderboard();
-  }, [activeTab]);
+  }, [loadLeaderboard]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

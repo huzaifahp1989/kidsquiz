@@ -12,7 +12,6 @@ export interface KidProfile {
   todayPoints?: number;
   dailyLimit?: number;
   badges: number;
-  gamesRemaining: number;
   level: string;
   createdAt: string;
   updatedAt: string;
@@ -21,7 +20,6 @@ export interface KidProfile {
 function mapUser(row: any, pointsRow?: any): KidProfile {
   const dailyLimit = 100;
   const todayPoints = pointsRow?.today_points ?? 0;
-  const remaining = Math.max(0, dailyLimit - todayPoints);
 
   const totalPoints = pointsRow?.total_points ?? row.points ?? 0;
   const weeklyPoints = pointsRow?.weekly_points ?? row.weeklyPoints ?? row.weeklypoints ?? 0;
@@ -39,7 +37,6 @@ function mapUser(row: any, pointsRow?: any): KidProfile {
     todayPoints,
     dailyLimit,
     badges: row.badges ?? 0,
-    gamesRemaining: remaining,
     level: row.level ?? 'Beginner',
     createdAt: row.createdAt ?? row.createdat ?? '',
     updatedAt: row.updatedAt ?? row.updatedat ?? '',
@@ -53,7 +50,7 @@ export async function getProfile(uid: string): Promise<KidProfile | null> {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, badges, daily_games_played, level, createdat:createdAt, updatedat:updatedAt')
+      .select('*')
       .eq('uid', uid)
       .maybeSingle();
 

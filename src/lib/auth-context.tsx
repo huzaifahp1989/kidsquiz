@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
 
@@ -16,7 +16,6 @@ type KidProfile = {
   todayPoints?: number;
   dailyLimit?: number;
   badges?: number;
-  gamesRemaining?: number;
   level: string;
 };
 
@@ -26,6 +25,7 @@ interface AuthContextValue {
   loading: boolean;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateLocalProfile: (updates: Partial<KidProfile>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -34,35 +34,98 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   logout: async () => {},
   refreshProfile: async () => {},
+  updateLocalProfile: () => {},
 });
+
+const DAILY_LIMIT = 100;
+
+const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
+  const todayPoints = pointsRow?.today_points ?? 0;
+  const points = pointsRow?.total_points ?? userRow.points ?? 0;
+  const weeklyPoints = pointsRow?.weekly_points ?? userRow.weeklyPoints ?? userRow.weeklypoints ?? 0;
+  const monthlyPoints = pointsRow?.monthly_points ?? userRow.monthlyPoints ?? userRow.monthlypoints ?? 0;
+  return {
+    uid: userRow.uid,
+    role: userRow.role,
+    name: userRow.name,
+    age: userRow.age,
+    email: userRow.email,
+    points,
+    weeklyPoints,
+    monthlyPoints,
+    todayPoints,
+    dailyLimit: DAILY_LIMIT,
+    badges: userRow.badges || 0,
+    level: userRow.level,
+  };
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [profile, setProfile] = useState<KidProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const dailyLimit = 100;
 
-  const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
-    const todayPoints = pointsRow?.today_points ?? 0;
-    const points = pointsRow?.total_points ?? userRow.points ?? 0;
-    const weeklyPoints = pointsRow?.weekly_points ?? userRow.weeklypoints ?? 0;
-    const monthlyPoints = pointsRow?.monthly_points ?? userRow.monthlypoints ?? 0;
-    return {
-      uid: userRow.uid,
-      role: userRow.role,
-      name: userRow.name,
-      age: userRow.age,
-      email: userRow.email,
-      points,
-      weeklyPoints,
-      monthlyPoints,
-      todayPoints,
-      dailyLimit,
-      badges: userRow.badges || 0,
-      gamesRemaining: Math.max(0, dailyLimit - todayPoints),
-      level: userRow.level,
-    };
-  };
+  // Define refreshProfile early so it can be used in effects
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    
+    console.log('Manually refreshing profile for:', user.id);
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('uid', user.id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Profile refresh error:', error.message);
+    } else if (data) {
+      const { data: pointsRow, error: pointsError } = await supabase
+        .from('users_points')
+        .select('total_points, weekly_points, monthly_points, today_points')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (pointsError) {
+        console.warn('users_points fetch error on refresh:', pointsError.message);
+      }
+
+      const mapped = mapProfile(data, pointsRow);
+      console.log('Profile refreshed:', mapped);
+      setProfile(mapped);
+    } else {
+      console.log('No profile data found for user; ensuring default profile');
+      const created = await ensureUserProfile(user.id);
+      if (created) {
+        const { data: refetched } = await supabase
+          .from('users')
+          .select('*')
+          .eq('uid', user.id)
+          .maybeSingle();
+          
+        if (refetched) {
+          const { data: pointsRow, error: pointsError } = await supabase
+            .from('users_points')
+            .select('total_points, weekly_points, monthly_points, today_points')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (pointsError) {
+            console.warn('users_points fetch error after ensure:', pointsError.message);
+          }
+
+          const mapped = mapProfile(refetched, pointsRow);
+          setProfile(mapped);
+        }
+      }
+    }
+  }, [user]);
+
+  const updateLocalProfile = useCallback((updates: Partial<KidProfile>) => {
+    setProfile(prev => {
+      if (!prev) return null;
+      return { ...prev, ...updates };
+    });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,15 +135,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // First, try to get existing session
         const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
         
+        if (sessionErr) {
+          console.error('Session check error:', sessionErr);
+          // If refresh token is invalid, force a clean logout
+          if (sessionErr.message && (
+              sessionErr.message.includes('Refresh Token Not Found') || 
+              sessionErr.message.includes('Invalid Refresh Token')
+          )) {
+            console.log('Detected invalid refresh token, forcing cleanup...');
+            await supabase.auth.signOut();
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
+        
         if (isMounted && sessionData.session?.user) {
           console.log('Found existing session:', sessionData.session.user.id);
           setUser({ id: sessionData.session.user.id, email: sessionData.session.user.email });
           setLoading(false);
           return;
-        }
-
-        if (sessionErr) {
-          console.error('Session check error:', sessionErr);
         }
 
         // No session; stay signed out. UI can prompt to sign in.
@@ -116,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Initial profile load
   useEffect(() => {
     (async () => {
       if (!user) {
@@ -125,63 +200,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setLoading(true);
-      console.log('Fetching profile for user:', user.id);
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('uid', user.id)
-        .maybeSingle();
-      if (error) {
-        console.error('Profile fetch error:', error.message);
-        setProfile(null);
-      } else if (data) {
-        const { data: pointsRow, error: pointsError } = await supabase
-          .from('users_points')
-          .select('total_points, weekly_points, monthly_points, today_points')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (pointsError) {
-          console.warn('users_points fetch error:', pointsError.message);
-        }
-
-        const mapped = mapProfile(data, pointsRow);
-        console.log('Profile mapped:', mapped);
-        setProfile(mapped);
-      } else {
-        console.log('No profile data found for user; ensuring default profile');
-        const created = await ensureUserProfile(user.id);
-        if (created) {
-          const { data: refetched } = await supabase
-            .from('users')
-            .select('*')
-            .eq('uid', user.id)
-            .maybeSingle();
-          if (refetched) {
-            const { data: pointsRow, error: pointsError } = await supabase
-              .from('users_points')
-              .select('total_points, weekly_points, monthly_points, today_points')
-              .eq('user_id', user.id)
-              .maybeSingle();
-
-            if (pointsError) {
-              console.warn('users_points fetch error after ensure:', pointsError.message);
-            }
-
-            const mapped = mapProfile(refetched, pointsRow);
-            setProfile(mapped);
-          } else {
-            setProfile(null);
-          }
-        } else {
-          setProfile(null);
-        }
-      }
+      await refreshProfile();
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, refreshProfile]);
 
+  // Real-time subscription
   useEffect(() => {
     if (!user) return;
     
@@ -193,68 +217,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         schema: 'public',
         table: 'users',
         filter: `uid=eq.${user.id}`,
-      }, (payload: any) => {
-        console.log('Real-time update received:', payload);
-        const newRow = payload.new ?? payload.old;
-        if (newRow) {
-          setProfile(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              uid: newRow.uid,
-              role: newRow.role,
-              name: newRow.name,
-              age: newRow.age,
-              email: newRow.email,
-              badges: newRow.badges || prev.badges,
-              level: newRow.level,
-            };
-          });
-        }
+      }, (payload) => {
+        console.log('Real-time update received (users):', payload);
+        refreshProfile();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'users_points',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        console.log('Real-time update received (users_points):', payload);
+        refreshProfile();
       })
       .subscribe();
     
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, refreshProfile]);
 
-  const refreshProfile = async () => {
-    if (!user) return;
-    
-    console.log('Manually refreshing profile for:', user.id);
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('uid', user.id)
-      .maybeSingle();
-    
-    if (error) {
-      console.error('Profile refresh error:', error.message);
-    } else if (data) {
-      const { data: pointsRow, error: pointsError } = await supabase
-        .from('users_points')
-        .select('total_points, weekly_points, monthly_points, today_points')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (pointsError) {
-        console.warn('users_points fetch error on refresh:', pointsError.message);
+  // Re-fetch on window focus (vital for mobile app state consistency)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        console.log('Window focused, refreshing profile...');
+        refreshProfile();
       }
-
-      const mapped = mapProfile(data, pointsRow);
-      console.log('Profile refreshed:', mapped);
-      setProfile(mapped);
-    }
-  };
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, refreshProfile]);
 
   const value = useMemo(() => ({
     user,
     profile,
     loading,
-    logout: async () => { await supabase.auth.signOut(); },
+    logout: async () => {
+      try {
+        console.log('Logging out...');
+        await supabase.auth.signOut({ scope: 'local' });
+        if (typeof window !== 'undefined') {
+          try {
+            const keys = Object.keys(window.localStorage);
+            for (const k of keys) {
+              if (k.startsWith('supabase') || k.startsWith('sb-')) {
+                window.localStorage.removeItem(k);
+              }
+            }
+          } catch {}
+        }
+
+        setUser(null);
+        setProfile(null);
+
+        supabase.auth.signOut().catch(() => {});
+        
+        if (typeof window !== 'undefined') {
+          window.location.replace('/signin');
+        }
+      } catch (err) {
+        console.error('Logout exception:', err);
+        if (typeof window !== 'undefined') {
+          window.location.replace('/signin');
+        }
+      }
+    },
     refreshProfile,
-  }), [user, profile, loading]);
+    updateLocalProfile,
+  }), [user, profile, loading, refreshProfile, updateLocalProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

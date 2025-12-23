@@ -106,6 +106,20 @@ export async function awardPoints(
       }
     }
 
+    // STRICT LIMIT CHECK: Check daily allowance BEFORE calling RPC
+    // This prevents points from increasing above 100 even if the server RPC is lenient
+    const allowance = await checkDailyAllowance()
+    if (allowance.remaining < points) {
+      console.warn('[awardPoints] 🛑 Client-side limit check: Daily limit reached', allowance)
+      return {
+        success: false,
+        message: 'Daily limit of 100 points reached',
+        points_awarded: 0,
+        today_points: allowance.today_points,
+        daily_limit: 100,
+      }
+    }
+
     // Call the RPC function
     console.log('[awardPoints] Calling RPC award_points with:', { p_points: points })
     const { data, error } = await supabase.rpc('award_points', {
@@ -114,15 +128,41 @@ export async function awardPoints(
 
     console.log('[awardPoints] RPC response:', { data, error: error?.message })
 
-    if (!error && data && data.success) {
-      console.log('[awardPoints] RPC success, syncing users table')
-      await syncUserSnapshot(user.id, {
-        total_points: data.total_points,
-        weekly_points: data.weekly_points,
-        monthly_points: data.monthly_points,
-      })
-      console.log('[awardPoints] Complete, returning:', data)
-      return data as AwardPointsResponse
+    if (!error && data) {
+      if (data.success) {
+        console.log('[awardPoints] RPC success, syncing users table')
+        await syncUserSnapshot(user.id, {
+          total_points: data.total_points,
+          weekly_points: data.weekly_points,
+          monthly_points: data.monthly_points,
+        })
+        return data as AwardPointsResponse
+      } 
+      
+      // If RPC failed, check if it's the deprecated "game limit" error
+      // If so, we ignore it and fall through to the direct upsert fallback
+      const isGameLimit = data.message && (
+        data.message.toLowerCase().includes('game limit') || 
+        data.message.toLowerCase().includes('3 games')
+      );
+      
+      if (!isGameLimit) {
+        // If RPC denied points, check if we can actually award partial points
+        // This handles the case where the server has strict "all or nothing" logic (old version)
+        const currentToday = data.today_points ?? 0
+        const currentLimit = data.daily_limit ?? 100
+        const remaining = Math.max(0, currentLimit - currentToday)
+        
+        if (remaining > 0) {
+          console.warn('[awardPoints] RPC denied but partial points possible. Forcing fallback to award remaining:', remaining)
+          // Fall through to fallback logic
+        } else {
+          console.log('[awardPoints] RPC denied points (likely daily points limit):', data.message)
+          return data as AwardPointsResponse
+        }
+      }
+      
+      console.warn('[awardPoints] RPC enforced deprecated game limit. Ignoring and using fallback upsert.');
     }
 
     // Fallback: direct upsert with daily cap enforcement
@@ -152,12 +192,15 @@ export async function awardPoints(
 
     const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr
     const todayPoints = isNewDay ? 0 : existingRow?.today_points ?? 0
-    const newDailyTotal = todayPoints + points
-
-    console.log('[awardPoints] Fallback: daily check:', { isNewDay, todayPoints, newDailyTotal, dailyLimit })
-
-    if (newDailyTotal > dailyLimit) {
-      console.warn('[awardPoints] Fallback: daily limit reached')
+    
+    // Calculate partial points if nearing limit
+    let pointsToAward = points
+    if (todayPoints + pointsToAward > dailyLimit) {
+      pointsToAward = Math.max(0, dailyLimit - todayPoints)
+    }
+    
+    if (pointsToAward <= 0) {
+      console.warn('[awardPoints] Fallback: daily limit reached (0 remaining)')
       return {
         success: false,
         message: 'Daily limit of 100 points reached',
@@ -167,9 +210,12 @@ export async function awardPoints(
       }
     }
 
-    const total = (existingRow?.total_points ?? 0) + points
-    const weekly = (existingRow?.weekly_points ?? 0) + points
-    const monthly = (existingRow?.monthly_points ?? 0) + points
+    const newDailyTotal = todayPoints + pointsToAward
+    console.log('[awardPoints] Fallback: daily check:', { isNewDay, todayPoints, newDailyTotal, dailyLimit, pointsToAward })
+
+    const total = (existingRow?.total_points ?? 0) + pointsToAward
+    const weekly = (existingRow?.weekly_points ?? 0) + pointsToAward
+    const monthly = (existingRow?.monthly_points ?? 0) + pointsToAward
 
     console.log('[awardPoints] Fallback: upserting with:', { user_id: user.id, total, weekly, monthly, today: newDailyTotal })
 
@@ -187,10 +233,10 @@ export async function awardPoints(
     console.log('[awardPoints] Fallback: upsert result:', { upsertErr })
 
     if (upsertErr) {
-      console.error('[awardPoints] fallback upsert error', upsertErr)
+      console.error('[awardPoints] fallback upsert error:', upsertErr)
       return {
         success: false,
-        message: upsertErr.message || 'Failed to award points',
+        message: 'Could not update points. Please try again.',
         points_awarded: 0,
       }
     }
@@ -205,8 +251,8 @@ export async function awardPoints(
     console.log('[awardPoints] Fallback: complete, returning success')
     return {
       success: true,
-      message: 'Points awarded successfully (fallback)',
-      points_awarded: points,
+      message: 'Points awarded successfully',
+      points_awarded: pointsToAward,
       total_points: total,
       today_points: newDailyTotal,
       weekly_points: weekly,
@@ -286,6 +332,7 @@ export async function getUserPointsById(
 
 /**
  * Check if user has daily allowance remaining
+ * Handles date checking to ensure daily reset is respected
  * @returns Object with today_points and daily_limit
  */
 export async function checkDailyAllowance(): Promise<{
@@ -303,9 +350,15 @@ export async function checkDailyAllowance(): Promise<{
     }
   }
 
+  // Check if the last earned date was today (UTC)
+  // If not, it means it's a new day and points should be 0
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const isNewDay = userPoints.last_earned_date !== todayStr
+  const actualTodayPoints = isNewDay ? 0 : userPoints.today_points
+
   return {
-    today_points: userPoints.today_points,
-    remaining: Math.max(0, 100 - userPoints.today_points),
+    today_points: actualTodayPoints,
+    remaining: Math.max(0, 100 - actualTodayPoints),
     daily_limit: 100,
   }
 }

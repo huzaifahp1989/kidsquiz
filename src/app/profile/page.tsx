@@ -169,7 +169,7 @@ user?.email ??
             </div>
             <div className="text-center rounded-lg bg-green-50 p-3">
               <div className="text-xs text-gray-600">Daily Points</div>
-              <div className="text-xl font-bold text-islamic-green">{profile?.weeklyPoints ?? 0}/100</div>
+              <div className="text-xl font-bold text-islamic-green">{profile?.todayPoints ?? 0}/100</div>
             </div>
             <div className="text-center rounded-lg bg-yellow-50 p-3">
               <div className="text-xs text-gray-600">Badges</div>

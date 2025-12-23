@@ -19,11 +19,9 @@ LANGUAGE sql
 IMMUTABLE
 AS $$
   SELECT CASE
-    WHEN p_points >= 1000 THEN 'Master'
-    WHEN p_points >= 500 THEN 'Expert'
-    WHEN p_points >= 250 THEN 'Advanced'
-    WHEN p_points >= 100 THEN 'Intermediate'
-    WHEN p_points >= 25 THEN 'Novice'
+    WHEN p_points >= 500 THEN 'Young Scholar'
+    WHEN p_points >= 250 THEN 'Explorer'
+    WHEN p_points >= 25 THEN 'Learner'
     ELSE 'Beginner'
   END;
 $$;

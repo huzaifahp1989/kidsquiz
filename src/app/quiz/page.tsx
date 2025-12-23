@@ -37,7 +37,7 @@ export default function QuizPage() {
   const [hasAwarded, setHasAwarded] = useState(false);
   const [practiceMode, setPracticeMode] = useState(false);
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, updateLocalProfile } = useAuth();
 
   // Get daily seed based on current date
   const dailySeed = useMemo(() => {
@@ -152,7 +152,7 @@ export default function QuizPage() {
       if (!result.success) {
         const today = result.today_points ?? 0;
         const limit = result.daily_limit ?? 100;
-        setResultToast(`⚠️ ${result.message || 'Daily limit reached'} (${today}/${limit} today).`);
+        setResultToast(`⚠️ Daily points limit reached (${today}/${limit}). Practice mode active!`);
         return;
       }
 
@@ -162,6 +162,16 @@ export default function QuizPage() {
       let toastMsg = `⭐ +${pointsAwarded} points! (${today}/${limit} today)`;
 
       setResultToast(toastMsg);
+
+      // Optimistic update
+      if (result.total_points !== undefined) {
+        updateLocalProfile({
+          points: result.total_points,
+          todayPoints: result.today_points,
+          weeklyPoints: result.weekly_points,
+          monthlyPoints: result.monthly_points
+        });
+      }
 
       const { error: markError } = await supabase
         .rpc('mark_quiz_completed', {
@@ -176,13 +186,14 @@ export default function QuizPage() {
         setCompletedQuizzes(prev => [...new Set([...prev, category])]);
       }
 
-      await refreshProfile();
+      // Background refresh to ensure consistency
+      refreshProfile();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile, category]);
+  }, [quizComplete, user?.id, score, hasAwarded, refreshProfile, category, updateLocalProfile]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white py-8 px-4">
@@ -248,10 +259,9 @@ export default function QuizPage() {
                 {/* Seerah */}
                 <button
                   onClick={() => handleStartQuiz('Seerah')}
-                  disabled={completedQuizzes.includes('Seerah')}
                   className={`p-6 border-4 border-sky-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Seerah')
-                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      ? 'bg-sky-50 hover:bg-sky-100'
                       : 'bg-sky-50 hover:bg-sky-100'
                   }`}
                 >
@@ -265,7 +275,7 @@ export default function QuizPage() {
                     {completedQuizzes.includes('Seerah') && (
                       <div className="flex flex-col items-center">
                         <CheckCircle className="text-sky-600 w-8 h-8" />
-                        <span className="text-xs text-sky-600 font-bold mt-1">Completed</span>
+                        <span className="text-xs text-sky-600 font-bold mt-1">Done</span>
                       </div>
                     )}
                   </div>
@@ -274,10 +284,9 @@ export default function QuizPage() {
                 {/* Hadith */}
                 <button
                   onClick={() => handleStartQuiz('Hadith')}
-                  disabled={completedQuizzes.includes('Hadith')}
                   className={`p-6 border-4 border-yellow-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Hadith')
-                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      ? 'bg-yellow-50 hover:bg-yellow-100'
                       : 'bg-yellow-50 hover:bg-yellow-100'
                   }`}
                 >
@@ -291,7 +300,7 @@ export default function QuizPage() {
                     {completedQuizzes.includes('Hadith') && (
                       <div className="flex flex-col items-center">
                         <CheckCircle className="text-green-600 w-8 h-8" />
-                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                        <span className="text-xs text-green-600 font-bold mt-1">Done</span>
                       </div>
                     )}
                   </div>
@@ -300,10 +309,9 @@ export default function QuizPage() {
                 {/* Prophets */}
                 <button
                   onClick={() => handleStartQuiz('Prophets')}
-                  disabled={completedQuizzes.includes('Prophets')}
                   className={`p-6 border-4 border-purple-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Prophets')
-                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      ? 'bg-purple-50 hover:bg-purple-100'
                       : 'bg-purple-50 hover:bg-purple-100'
                   }`}
                 >
@@ -317,7 +325,7 @@ export default function QuizPage() {
                     {completedQuizzes.includes('Prophets') && (
                       <div className="flex flex-col items-center">
                         <CheckCircle className="text-green-600 w-8 h-8" />
-                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                        <span className="text-xs text-green-600 font-bold mt-1">Done</span>
                       </div>
                     )}
                   </div>
@@ -326,10 +334,9 @@ export default function QuizPage() {
                 {/* Quran Stories */}
                 <button
                   onClick={() => handleStartQuiz('Quran Stories')}
-                  disabled={completedQuizzes.includes('Quran Stories')}
                   className={`p-6 border-4 border-blue-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Quran Stories')
-                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      ? 'bg-blue-50 hover:bg-blue-100'
                       : 'bg-blue-50 hover:bg-blue-100'
                   }`}
                 >
@@ -343,7 +350,7 @@ export default function QuizPage() {
                     {completedQuizzes.includes('Quran Stories') && (
                       <div className="flex flex-col items-center">
                         <CheckCircle className="text-green-600 w-8 h-8" />
-                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                        <span className="text-xs text-green-600 font-bold mt-1">Done</span>
                       </div>
                     )}
                   </div>
@@ -352,10 +359,9 @@ export default function QuizPage() {
                 {/* Akhlaq */}
                 <button
                   onClick={() => handleStartQuiz('Akhlaq')}
-                  disabled={completedQuizzes.includes('Akhlaq')}
                   className={`p-6 border-4 border-pink-300 rounded-xl hover:shadow-lg transition ${
                     completedQuizzes.includes('Akhlaq')
-                      ? 'bg-gray-100 opacity-60 cursor-not-allowed'
+                      ? 'bg-pink-50 hover:bg-pink-100'
                       : 'bg-pink-50 hover:bg-pink-100'
                   }`}
                 >
@@ -364,12 +370,12 @@ export default function QuizPage() {
                       <div className="text-4xl mb-2">💖</div>
                       <h3 className="text-2xl font-bold text-pink-700 mb-2">Akhlaq</h3>
                       <p className="text-gray-700 mb-2">Islamic Manners & Character</p>
-                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)
+                      <p className="text-sm text-gray-600">5 questions • 2 points each (10 pts)</p>
                     </div>
                     {completedQuizzes.includes('Akhlaq') && (
                       <div className="flex flex-col items-center">
                         <CheckCircle className="text-green-600 w-8 h-8" />
-                        <span className="text-xs text-green-600 font-bold mt-1">Completed</span>
+                        <span className="text-xs text-green-600 font-bold mt-1">Done</span>
                       </div>
                     )}
                   </div>
@@ -382,9 +388,9 @@ export default function QuizPage() {
                 <ul className="space-y-2 text-gray-700">
                   <li>✓ Each quiz has 10 questions from the selected category</li>
                   <li>✓ Each correct answer earns you 1 point (10 points maximum per quiz)</li>
-                  <li>✓ You can take multiple quizzes up to the weekly limit of 250 points</li>
+                  <li>✓ You can take multiple quizzes up to the daily limit of 100 points</li>
                   <li>✓ Wrong answers show you the correct answer with explanation</li>
-                  <li>✓ Each quiz can only be completed ONCE to prevent cheating 🛡️</li>
+                  <li>✓ Play unlimited times to practice your knowledge! 📚</li>
                   <li>✓ Reach 1000 monthly points to earn a special badge! 🏆</li>
                 </ul>
               </div>

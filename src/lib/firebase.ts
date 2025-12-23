@@ -15,4 +15,5 @@ export const firebaseConfig = {
 // - Database: Supabase PostgreSQL
 // - Storage: Supabase Storage (if needed)
 
-export default null;
+const firebase = null;
+export default firebase;

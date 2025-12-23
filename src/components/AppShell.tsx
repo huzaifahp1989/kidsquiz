@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Navbar } from '@/components';
+import { Navbar } from './Navbar';
 import { FeedbackBanner } from '@/components/FeedbackBanner';
 import { useAuth } from '@/lib/auth-context';
 

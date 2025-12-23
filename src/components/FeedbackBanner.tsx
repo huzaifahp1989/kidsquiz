@@ -68,13 +68,12 @@ export function FeedbackBanner() {
       <div className="bg-blue-50 border-b border-blue-200 py-3 px-4">
         <div className="max-w-6xl mx-auto">
           <p className="text-sm text-blue-900 text-center">
-            ℹ️ <strong>Notice:</strong> Quiz is currently working at the moment with the points. 
-            We are working on the games point system so bear with us. 
+            ℹ️ <strong>Notice:</strong> The games and quizzes are currently in test mode, so your points may reset during this period. 
             <button
               onClick={() => setShowFeedback(!showFeedback)}
               className="text-blue-700 underline hover:text-blue-900 font-semibold ml-1"
             >
-              Please send us feedback here
+              Please send us your feedback—your help will make the experience better for everyone!
             </button>
           </p>
         </div>

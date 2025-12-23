@@ -432,7 +432,7 @@ const buildGameSession = (gameId: GameId, difficulty: Difficulty): GameSession =
 };
 
 export default function GamesPage() {
-  const { user, refreshProfile, profile } = useAuth() as any;
+  const { user, refreshProfile, profile, updateLocalProfile } = useAuth() as any;
   const [selectedGameId, setSelectedGameId] = useState<GameId | null>(null);
   const [session, setSession] = useState<GameSession | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
@@ -555,7 +555,7 @@ export default function GamesPage() {
       if (!result.success) {
         const today = result.today_points ?? 0;
         const limit = result.daily_limit ?? 100;
-        setToast(`⚠️ ${result.message || 'Daily limit reached'} (${today}/${limit} today)`);
+        setToast(`⚠️ Daily points limit reached (${today}/${limit}). Play for fun!`);
         setTimeout(() => setToast(null), 3000);
         return;
       }
@@ -568,7 +568,18 @@ export default function GamesPage() {
       setPointsSaved(true);
       setTimeout(() => setToast(null), 2500);
       setTimeout(() => setPointsSaved(false), 2500);
-      await refreshProfile();
+
+      // Optimistic update
+      if (result.total_points !== undefined) {
+        updateLocalProfile({
+          points: result.total_points,
+          todayPoints: result.today_points,
+          weeklyPoints: result.weekly_points,
+          monthlyPoints: result.monthly_points
+        });
+      }
+
+      refreshProfile();
       return;
     } catch (err: any) {
       console.error('[games] award_points error', err);

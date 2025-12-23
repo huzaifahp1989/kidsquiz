@@ -3,63 +3,6 @@
 // Each correct answer = 2 points, so 10 points per quiz
 // Daily limit: 100 points max | Questions change every day
 
-export const quizzes = [
-  // SEERAH - 10 Questions
-  {
-    id: 'seerah-1',
-    question: 'Who was entrusted to return the Quraysh\'s deposits on the night of Hijrah?',
-    options: ['Abu Bakr (RA)', 'Zayd ibn Harithah (RA)', 'Ali ibn Abi Talib (RA)', 'Abdullah ibn Mas\'ud (RA)'],
-    correctAnswer: 2,
-    explanation: 'Ali ibn Abi Talib (RA) was entrusted with the responsibility of returning all the deposits that the Quraysh had left with the Prophet ﷺ.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 1
-  },
-  {
-    id: 'seerah-2',
-    question: 'The guide hired for the Hijrah route was:',
-    options: ['Mut\'im ibn \'Adi', 'Abdullah ibn Urayqit', 'Abu Jahl', 'Safwan ibn Umayyah'],
-    correctAnswer: 1,
-    explanation: 'Abdullah ibn Urayqit was hired as the expert guide for the Hijrah journey to Madinah.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 1
-  },
-  {
-    id: 'seerah-3',
-    question: 'Which battle took place in Shawwal, 3 AH?',
-    options: ['Badr', 'Khandaq', 'Uhud', 'Hunayn'],
-    correctAnswer: 2,
-    explanation: 'The Battle of Uhud took place in Shawwal of the third year after Hijrah.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 1
-  },
-  {
-    id: 'seerah-4',
-    question: 'Who was sent ahead to Madinah to teach Islam before Hijrah?',
-    options: ['Mu\'adh ibn Jabal (RA)', 'Mus\'ab ibn Umair (RA)', 'Bilal ibn Rabah (RA)', 'Ammar ibn Yasir (RA)'],
-    correctAnswer: 1,
-    explanation: 'Mus\'ab ibn Umair (RA) was sent to Madinah before the Hijrah to teach the Qur\'an and Islam.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 1
-  },
-  {
-    id: 'seerah-5',
-    question: 'What was the first masjid built by Rasulullah ﷺ?',
-    options: ['Masjid Nabawi', 'Masjid al-Haram', 'Masjid Quba', 'Masjid al-Aqsa'],
-    correctAnswer: 2,
-    explanation: 'Masjid Quba was the first masjid built by the Prophet ﷺ upon arriving in the outskirts of Madinah.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 1
-  },
-  // Quiz questions data - 5 Categories with 30 questions each (150 total)
-  // Each quiz shows 5 random questions based on daily seed
-  // Each correct answer = 2 points, so 10 points per quiz
-  // Daily limit: 100 points max | Questions change every day
-
   export const quizzes = [
     // SEERAH - 30 Questions (Refreshed)
     { id: 'seerah-1', question: 'Who was the first person to accept Islam after Khadijah (RA)?', options: ['Ali ibn Abi Talib', 'Abu Bakr as-Siddiq', 'Zayd ibn Harithah', 'Uthman ibn Affan'], correctAnswer: 0, explanation: 'Ali ibn Abi Talib (RA) was the first child to accept Islam after Khadijah (RA).', category: 'Seerah', difficulty: 'Seerah', points: 2 },
@@ -219,13 +162,17 @@ export const quizzes = [
     { id: 'akhlaq-27', question: 'What is “Qana’ah”?', options: ['Haste', 'Contentment with what Allah provides', 'Greed', 'Anger'], correctAnswer: 1, explanation: 'Qana’ah is contentment and reduces envy.', category: 'Akhlaq', difficulty: 'Akhlaq', points: 2 },
     { id: 'akhlaq-28', question: 'What should one do before entering another’s room/house?', options: ['Walk in', 'Knock/seek permission and greet', 'Shout', 'Open cabinets'], correctAnswer: 1, explanation: 'Islam requires permission and Salam before entry.', category: 'Akhlaq', difficulty: 'Akhlaq', points: 2 },
     { id: 'akhlaq-29', question: 'How to reconcile between people?', options: ['Spread rumors', 'Make honest peace and du’a', 'Take sides unjustly', 'Ignore'], correctAnswer: 1, explanation: 'Reconciling is rewarded; even limited “white lies” to mend ties are allowed.', category: 'Akhlaq', difficulty: 'Akhlaq', points: 2 },
-    { id: 'akhlaq-30', question: 'What is “Birr al-walidayn”?', options: ['Visiting friends', 'Kindness and dutifulness to parents', 'Charity only', 'Silence'], correctAnswer: 1, explanation: 'Birr al-walidayn means honoring and serving parents with excellence.', category: 'Akhlaq', difficulty: 'Akhlaq', points: 2 }
-  ];
-    explanation: 'Khalid ibn al-Walid (RA) was given the title "Saifullah" (Sword of Allah) by the Prophet ﷺ.',
-    category: 'Seerah',
-    difficulty: 'Seerah',
-    points: 2
-  },
+    { id: 'akhlaq-30', question: 'What is “Birr al-walidayn”?', options: ['Visiting friends', 'Kindness and dutifulness to parents', 'Charity only', 'Silence'], correctAnswer: 1, explanation: 'Birr al-walidayn means honoring and serving parents with excellence.', category: 'Akhlaq', difficulty: 'Akhlaq', points: 2 },
+    {
+      id: 'seerah-14',
+      question: 'Who was given the title "Saifullah" (Sword of Allah)?',
+      options: ['Abu Bakr (RA)', 'Umar (RA)', 'Ali (RA)', 'Khalid ibn al-Walid (RA)'],
+      correctAnswer: 3,
+      explanation: 'Khalid ibn al-Walid (RA) was given the title "Saifullah" (Sword of Allah) by the Prophet ﷺ.',
+      category: 'Seerah',
+      difficulty: 'Seerah',
+      points: 2
+    },
   {
     id: 'seerah-15',
     question: 'How many years did the Prophet ﷺ live in Madinah?',

@@ -98,16 +98,29 @@ export default function SignupPage() {
         router.push('/signin');
       }, 2000);
     } catch (err: any) {
+      console.error('Signup process error:', err);
       let msg = err?.message || 'Failed to sign up. Please try again.';
-      if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
+      
+      // More detailed error messages for common database issues
+      if (err?.code === '42501') {
+        msg = 'Database permission denied. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
+      } else if (err?.code === '42703') {
+        msg = 'Database column missing. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
+      } else if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
         msg = 'That email is already registered. Try signing in instead.';
-      }
-      if (err?.code === 'email_exists' || err?.code === '23505') {
+      } else if (err?.code === 'email_exists' || err?.code === '23505') {
         msg = 'That email is already registered. Try signing in instead.';
-      }
-      if (err?.code === 'email_not_confirmed') {
+      } else if (err?.code === 'email_not_confirmed') {
         msg = 'Email not confirmed. Check your inbox or disable email confirmation in Supabase.';
       }
+      
+      // Append the actual error code for easier debugging
+      if (err?.code) {
+        msg += ` (Code: ${err.code})`;
+      } else if (err?.details) {
+         msg += ` (${err.details})`;
+      }
+
       setError(msg);
       setErrorCode(err?.code || err?.name || null);
       if (isDev) {

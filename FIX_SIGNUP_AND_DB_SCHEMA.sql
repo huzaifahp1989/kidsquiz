@@ -86,25 +86,32 @@ CREATE POLICY "Users can update own points" ON public.users_points
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (uid, email, name, age, role, points, weeklypoints, monthlypoints, level)
-  VALUES (
-    new.id,
-    new.email,
-    COALESCE(new.raw_user_meta_data->>'name', 'Learner'),
-    COALESCE((new.raw_user_meta_data->>'age')::int, 10),
-    'kid',
-    0,
-    0,
-    0,
-    'Beginner'
-  )
-  ON CONFLICT (uid) DO NOTHING;
-  
-  -- Also init users_points
-  INSERT INTO public.users_points (user_id, total_points, weekly_points, monthly_points, today_points)
-  VALUES (new.id, 0, 0, 0, 0)
-  ON CONFLICT (user_id) DO NOTHING;
-  
+  -- We use a nested BEGIN/EXCEPTION block so that if the profile creation fails
+  -- (e.g. column mismatch), the actual User Creation still succeeds.
+  BEGIN
+    INSERT INTO public.users (uid, email, name, age, role, points, weeklypoints, monthlypoints, level)
+    VALUES (
+      new.id,
+      new.email,
+      COALESCE(new.raw_user_meta_data->>'name', 'Learner'),
+      COALESCE((new.raw_user_meta_data->>'age')::int, 10),
+      'kid',
+      0,
+      0,
+      0,
+      'Beginner'
+    )
+    ON CONFLICT (uid) DO NOTHING;
+    
+    -- Also init users_points
+    INSERT INTO public.users_points (user_id, total_points, weekly_points, monthly_points, today_points)
+    VALUES (new.id, 0, 0, 0, 0)
+    ON CONFLICT (user_id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    -- If this fails, we log it (to Postgres logs) but do NOT fail the transaction
+    RAISE WARNING 'handle_new_user trigger failed: %', SQLERRM;
+  END;
+
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

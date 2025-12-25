@@ -106,10 +106,10 @@ export default function SignupPage() {
         msg = 'Database permission denied. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
       } else if (err?.code === '42703') {
         msg = 'Database column missing. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
-      } else if (err?.code === 'unexpected_failure') {
+      } else if (err?.code === 'unexpected_failure' || (err?.message && err.message.includes('Database error saving new user'))) {
         // This is often a generic 500 from Supabase/PostgREST.
         // It could mean the Trigger failed.
-        msg = 'Unexpected database error. This might be a server-side trigger issue. Please check Supabase logs.';
+        msg = 'Database Error: The "handle_new_user" trigger likely failed. Please run FIX_SIGNUP_AND_DB_SCHEMA.sql in Supabase SQL Editor.';
       } else if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
         msg = 'That email is already registered. Try signing in instead.';
       } else if (err?.code === 'email_exists' || err?.code === '23505') {
@@ -142,7 +142,23 @@ export default function SignupPage() {
         <p className="text-center text-gray-600 mb-6 text-sm sm:text-base">For kids ages 5–14</p>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">{error}</div>
+          <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
+            <p className="font-bold">{error}</p>
+            {(errorCode === 'unexpected_failure' || error.includes('Database Error') || error.includes('database error')) && (
+               <div className="mt-3 bg-white p-3 rounded border border-red-200 shadow-sm">
+                 <p className="text-xs text-gray-800 mb-2 font-bold">
+                   ⚠️ REQUIRED FIX: Run this SQL in Supabase Dashboard &rarr; SQL Editor
+                 </p>
+                 <textarea 
+                   readOnly 
+                   className="w-full h-32 text-[10px] font-mono bg-gray-50 border border-gray-300 p-2 rounded focus:ring-2 focus:ring-red-500 focus:outline-none"
+                   value={DB_FIX_SQL}
+                   onClick={(e) => e.currentTarget.select()}
+                 />
+                 <p className="text-[10px] text-gray-500 mt-1">Click to select all, then copy & paste into Supabase SQL Editor and click RUN.</p>
+               </div>
+            )}
+          </div>
         )}
 
         {success && (

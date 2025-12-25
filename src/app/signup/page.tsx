@@ -98,7 +98,7 @@ export default function SignupPage() {
         router.push('/signin');
       }, 2000);
     } catch (err: any) {
-      console.error('Signup process error:', err);
+      console.error('Signup process error FULL OBJECT:', err);
       let msg = err?.message || 'Failed to sign up. Please try again.';
       
       // More detailed error messages for common database issues
@@ -106,6 +106,10 @@ export default function SignupPage() {
         msg = 'Database permission denied. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
       } else if (err?.code === '42703') {
         msg = 'Database column missing. Please run the FIX_SIGNUP_AND_DB_SCHEMA.sql script in Supabase.';
+      } else if (err?.code === 'unexpected_failure') {
+        // This is often a generic 500 from Supabase/PostgREST.
+        // It could mean the Trigger failed.
+        msg = 'Unexpected database error. This might be a server-side trigger issue. Please check Supabase logs.';
       } else if (typeof msg === 'string' && msg.toLowerCase().includes('duplicate key')) {
         msg = 'That email is already registered. Try signing in instead.';
       } else if (err?.code === 'email_exists' || err?.code === '23505') {

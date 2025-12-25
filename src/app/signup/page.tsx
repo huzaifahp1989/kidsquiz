@@ -38,6 +38,13 @@ export default function SignupPage() {
       const { data: signUpRes, error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            age: Number(age),
+            role: 'kid'
+          }
+        }
       });
       if (signUpErr) throw signUpErr;
 

@@ -64,7 +64,7 @@ export function useMultiplayer() {
     };
   }, [profile]);
 
-  const createRoom = async (gameType: 'quiz' | 'word-scramble' | 'hangman' = 'quiz') => {
+  const createRoom = async (gameType: 'quiz' | 'word-scramble' | 'hangman' | 'quran-verses' | 'prophet-timeline' | 'dua-completion' = 'quiz') => {
     if (!profile) return null;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     

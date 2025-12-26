@@ -6,6 +6,17 @@ import { supabase } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
 import { Button } from '@/components/Button';
 
+const DB_FIX_SQL = `-- QUICK FIX: Run the full repair script from the repo
+-- In Supabase SQL Editor, paste the contents of SUPABASE_FIX_AWARD_POINTS.sql
+-- Path in repo: SUPABASE_FIX_AWARD_POINTS.sql
+-- This script creates users + users_points, trigger, RLS, grants, award_points RPC
+-- Steps:
+-- 1) Open Supabase SQL Editor
+-- 2) Open SUPABASE_FIX_AWARD_POINTS.sql from your repo and copy all contents
+-- 3) Paste and Run
+-- 4) Re-try signup
+`;
+
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -35,17 +46,15 @@ export default function SignupPage() {
 
     try {
       setLoading(true);
+      
+      // Attempt signup WITHOUT metadata first to minimize trigger issues
       const { data: signUpRes, error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            name,
-            age: Number(age),
-            role: 'kid'
-          }
-        }
+        // We do NOT send metadata here to avoid confusing any broken triggers.
+        // We will insert the profile manually below.
       });
+
       if (signUpErr) throw signUpErr;
 
       // Try to ensure we have a session right away (no email confirmation flow)
@@ -143,19 +152,45 @@ export default function SignupPage() {
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
-            <p className="font-bold">{error}</p>
+            <p className="font-bold text-lg">⚠️ Signup Failed</p>
+            <p className="mb-2">{error}</p>
+            
             {(errorCode === 'unexpected_failure' || error.includes('Database Error') || error.includes('database error')) && (
-               <div className="mt-3 bg-white p-3 rounded border border-red-200 shadow-sm">
-                 <p className="text-xs text-gray-800 mb-2 font-bold">
-                   ⚠️ REQUIRED FIX: Run this SQL in Supabase Dashboard &rarr; SQL Editor
+               <div className="mt-3 bg-white p-4 rounded border-2 border-red-500 shadow-lg animate-pulse-border">
+                 <p className="text-sm font-bold text-red-600 mb-2 uppercase">
+                   Action Required: Fix Database
                  </p>
-                 <textarea 
-                   readOnly 
-                   className="w-full h-32 text-[10px] font-mono bg-gray-50 border border-gray-300 p-2 rounded focus:ring-2 focus:ring-red-500 focus:outline-none"
-                   value={DB_FIX_SQL}
-                   onClick={(e) => e.currentTarget.select()}
-                 />
-                 <p className="text-[10px] text-gray-500 mt-1">Click to select all, then copy & paste into Supabase SQL Editor and click RUN.</p>
+                 <ol className="list-decimal list-inside text-sm space-y-2 mb-3 text-gray-800">
+                   <li>
+                     <a 
+                       href="https://supabase.com/dashboard/project/jlqrbbqsuksncrxjcmbc/sql/new" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="text-blue-600 underline font-bold hover:text-blue-800"
+                     >
+                       Click here to open Supabase SQL Editor
+                     </a>
+                   </li>
+                   <li>Copy the code below</li>
+                   <li>Paste it into the SQL Editor</li>
+                   <li>Click the green <strong>"Run"</strong> button</li>
+                 </ol>
+                 
+                 <div className="relative">
+                   <textarea 
+                     readOnly 
+                     className="w-full h-40 text-[11px] font-mono bg-gray-100 border border-gray-400 p-2 rounded focus:ring-2 focus:ring-red-500 focus:outline-none text-black"
+                     value={DB_FIX_SQL}
+                     onClick={(e) => e.currentTarget.select()}
+                   />
+                   <div className="absolute top-2 right-2 bg-white/80 px-2 py-1 rounded text-xs pointer-events-none">
+                     Click to Select All
+                   </div>
+                 </div>
+                 
+                 <p className="text-xs text-center text-gray-500 mt-2 font-medium">
+                   After running this, try signing up again.
+                 </p>
                </div>
             )}
           </div>

@@ -256,7 +256,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout: async () => {
       try {
         console.log('Logging out...');
-        await supabase.auth.signOut({ scope: 'local' });
+        
+        // 1. Force clear local storage first (most important)
         if (typeof window !== 'undefined') {
           try {
             const keys = Object.keys(window.localStorage);
@@ -265,19 +266,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 window.localStorage.removeItem(k);
               }
             }
-          } catch {}
+          } catch (e) { console.error('LocalStorage cleanup error', e); }
         }
 
+        // 2. Clear state
         setUser(null);
         setProfile(null);
 
-        supabase.auth.signOut().catch(() => {});
-        
+        // 3. Try to notify Supabase (but don't block/fail on it)
+        try {
+           await supabase.auth.signOut();
+        } catch (e) {
+           console.warn('Supabase signOut failed, ignoring:', e);
+        }
+
+        // 4. Redirect
         if (typeof window !== 'undefined') {
           window.location.replace('/signin');
         }
       } catch (err) {
         console.error('Logout exception:', err);
+        // Fallback redirect
         if (typeof window !== 'undefined') {
           window.location.replace('/signin');
         }

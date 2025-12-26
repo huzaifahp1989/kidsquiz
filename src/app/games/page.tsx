@@ -14,11 +14,18 @@ import {
   hadithScenarioPool,
   halalHaramPool,
   hiddenChallenges,
+  hangmanTopics,
   quranWordSearch,
   sahabahDecisionScenarios,
   sahabahTimeline,
   seerahWordSearch,
   wuduFixerPool,
+  prophetTimelinePool,
+  quranVersesPool,
+  sunnahPracticesPool,
+  duaCompletionPool,
+  islamicLeadersPool,
+  islamicCalendarPool,
 } from '@/data/games';
 
 type GameId =
@@ -30,9 +37,15 @@ type GameId =
   | 'halal-haram-makrooh'
   | 'sahabah-timeline'
   | 'sahabah-decision'
-  ;
+  | 'hangman'
+  | 'prophet-timeline'
+  | 'quran-verses'
+  | 'sunnah-practices'
+  | 'dua-completion'
+  | 'islamic-leaders'
+  | 'islamic-calendar';
 
-type TaskKind = 'mcq' | 'wordsearch' | 'match' | 'timeline';
+type TaskKind = 'mcq' | 'wordsearch' | 'match' | 'timeline' | 'hangman';
 
 interface Task {
   id: string;
@@ -123,6 +136,48 @@ const gameCatalog: { id: GameId; title: string; description: string; icon: strin
     title: 'Sahabah Decision Game',
     description: 'Choose what a Sahabi would do',
     icon: '🛡️',
+  },
+  {
+    id: 'hangman',
+    title: 'Islamic Hangman',
+    description: 'Guess words from Prophets, Quran, and more',
+    icon: '🏗️',
+  },
+  {
+    id: 'prophet-timeline',
+    title: 'Prophet Timeline',
+    description: 'Match prophets to their legendary deeds',
+    icon: '📖',
+  },
+  {
+    id: 'quran-verses',
+    title: 'Qur\'an Verses',
+    description: 'Match surahs to their main themes',
+    icon: '✨',
+  },
+  {
+    id: 'sunnah-practices',
+    title: 'Sunnah Practices',
+    description: 'Identify authentic sunnah actions',
+    icon: '🙏',
+  },
+  {
+    id: 'dua-completion',
+    title: 'Dua Completion',
+    description: 'Complete famous Islamic duas',
+    icon: '💬',
+  },
+  {
+    id: 'islamic-leaders',
+    title: 'Islamic Leaders',
+    description: 'Match leaders to their achievements',
+    icon: '👑',
+  },
+  {
+    id: 'islamic-calendar',
+    title: 'Islamic Calendar',
+    description: 'Knowledge of the Hijri calendar',
+    icon: '📅',
   },
 ];
 
@@ -379,8 +434,38 @@ const buildWordSearchSession = (config: WordSearchConfig, difficulty: Difficulty
   };
 };
 
+const buildHangmanSession = (difficulty: Difficulty): GameSession => {
+  const topics = Object.keys(hangmanTopics.topics);
+  const selectedTopics = pickMany(topics, 3); // 3 rounds
+  const tasks: Task[] = selectedTopics.map((topic, index) => {
+    const words = hangmanTopics.topics[topic];
+    const selectedWord = pickMany(words, 1)[0];
+    return {
+      id: `hangman-${index}`,
+      kind: 'hangman',
+      prompt: `Topic: ${topic}`,
+      options: [], // Not used for hangman
+      points: 10,
+      meta: {
+        word: selectedWord.word,
+        hint: selectedWord.hint,
+        topic: topic,
+      },
+    };
+  });
+
+  return {
+    id: 'hangman',
+    title: 'Islamic Hangman',
+    icon: '🏗️',
+    tasks: tasks,
+  };
+};
+
 const buildGameSession = (gameId: GameId, difficulty: Difficulty): GameSession => {
   switch (gameId) {
+    case 'hangman':
+      return buildHangmanSession(difficulty);
     case 'word-search-seerah':
       return buildWordSearchSession(seerahWordSearch, difficulty, gameId);
     case 'word-search-quran':
@@ -421,6 +506,54 @@ const buildGameSession = (gameId: GameId, difficulty: Difficulty): GameSession =
         tasks: limitTasks(withHiddenChallenge([buildTimelineTask(difficulty), buildTimelineTask(difficulty)])),
       };
     case 'sahabah-decision':
+      return {
+        id: 'sahabah-decision',
+        title: 'Sahabah Decision Game',
+        icon: '🛡️',
+        tasks: limitTasks(withHiddenChallenge(buildDecisionTasks(difficulty))),
+      };
+    case 'prophet-timeline':
+      return {
+        id: gameId,
+        title: 'Prophet Timeline',
+        icon: '📖',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(prophetTimelinePool, difficulty, 3))),
+      };
+    case 'quran-verses':
+      return {
+        id: gameId,
+        title: 'Qur\'an Verses',
+        icon: '✨',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(quranVersesPool, difficulty, 3))),
+      };
+    case 'sunnah-practices':
+      return {
+        id: gameId,
+        title: 'Sunnah Practices',
+        icon: '🙏',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(sunnahPracticesPool, difficulty, 3))),
+      };
+    case 'dua-completion':
+      return {
+        id: gameId,
+        title: 'Dua Completion',
+        icon: '💬',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(duaCompletionPool, difficulty, 3))),
+      };
+    case 'islamic-leaders':
+      return {
+        id: gameId,
+        title: 'Islamic Leaders',
+        icon: '👑',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(islamicLeadersPool, difficulty, 3))),
+      };
+    case 'islamic-calendar':
+      return {
+        id: gameId,
+        title: 'Islamic Calendar',
+        icon: '📅',
+        tasks: limitTasks(withHiddenChallenge(buildSimpleMcqTasks(islamicCalendarPool, difficulty, 3))),
+      };
     default:
       return {
         id: 'sahabah-decision',
@@ -441,10 +574,12 @@ export default function GamesPage() {
   const [matchAnswers, setMatchAnswers] = useState<Record<string, string>>({});
   const [timelineOrder, setTimelineOrder] = useState<Record<string, number>>({});
   const [foundWords, setFoundWords] = useState<Record<string, boolean>>({});
+  const [foundCells, setFoundCells] = useState<Record<string, boolean>>({});
   const [dragActive, setDragActive] = useState(false);
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
-  const [dragHover, setDragHover] = useState<[number, number] | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({});
+  const [selectionStart, setSelectionStart] = useState<[number, number] | null>(null);
   const [points, setPoints] = useState(0);
   const pointsRef = useRef(0);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -457,6 +592,9 @@ export default function GamesPage() {
   const [pointsSaved, setPointsSaved] = useState(false);
   const [devMode, setDevMode] = useState(false);
   const [completion, setCompletion] = useState<CompletionSummary | null>(null);
+  const [wordSearchCompleted, setWordSearchCompleted] = useState(false);
+  const [hangmanGuesses, setHangmanGuesses] = useState<Set<string>>(new Set());
+  const [hangmanWrongCount, setHangmanWrongCount] = useState(0);
 
   const applyPointGain = (totalEarned: number) => {
     setPoints(prev => {
@@ -484,10 +622,15 @@ export default function GamesPage() {
     setMatchAnswers({});
     setTimelineOrder({});
     setFoundWords({});
+    setFoundCells({});
     setDragActive(false);
     setDragStart(null);
-    setDragHover(null);
+    setDragCurrent(null);
     setDragHighlight({});
+    setSelectionStart(null);
+    setWordSearchCompleted(false);
+    setHangmanGuesses(new Set());
+    setHangmanWrongCount(0);
     setPoints(0);
     pointsRef.current = 0;
     setFeedback(null);
@@ -704,8 +847,46 @@ export default function GamesPage() {
     
     setTimeout(async () => {
       setFeedback(null);
-      await advanceTask();
+      setWordSearchCompleted(true);
     }, 1500);
+  };
+
+  const handleHangmanGuess = async (letter: string) => {
+    if (!currentTask || currentTask.kind !== 'hangman' || hangmanGuesses.has(letter) || hangmanWrongCount >= 6) return;
+    
+    const word = (currentTask.meta?.word as string)?.toUpperCase() || '';
+    const newGuesses = new Set(hangmanGuesses);
+    newGuesses.add(letter);
+    setHangmanGuesses(newGuesses);
+
+    if (word.includes(letter)) {
+      const isComplete = [...word].every(char => newGuesses.has(char));
+      if (isComplete) {
+        setFeedback('🎉 MashaAllah! You guessed it!');
+        const projectedStreak = correctStreak + 1;
+        await awardPointsForGame(currentTask.points, projectedStreak);
+        adjustDifficulty(true);
+        setTimeout(async () => {
+           setFeedback(null);
+           setHangmanGuesses(new Set());
+           setHangmanWrongCount(0);
+           await advanceTask();
+        }, 1500);
+      }
+    } else {
+      const newWrong = hangmanWrongCount + 1;
+      setHangmanWrongCount(newWrong);
+      if (newWrong >= 6) {
+        setFeedback(`Game Over! The word was ${word}`);
+        adjustDifficulty(false);
+        setTimeout(async () => {
+           setFeedback(null);
+           setHangmanGuesses(new Set());
+           setHangmanWrongCount(0);
+           await advanceTask();
+        }, 2500);
+      }
+    }
   };
 
   // Helpers for drag selection on word grid
@@ -735,43 +916,103 @@ export default function GamesPage() {
       const e = p.end;
       const direct = s[0] === start[0] && s[1] === start[1] && e[0] === end[0] && e[1] === end[1];
       const reverse = e[0] === start[0] && e[1] === start[1] && s[0] === end[0] && s[1] === end[1];
-      if (direct || reverse) return p.word;
+      if (direct || reverse) return p;
     }
     return null;
   };
 
+  const attemptMatch = (start: [number, number], end: [number, number]) => {
+    const match = checkSelectionMatch(start, end);
+    if (match) {
+      setFoundWords(prev => ({ ...prev, [match.word]: true }));
+      
+      const line = getLineCells(start, end);
+      setFoundCells(prev => {
+        const next = { ...prev };
+        line.forEach(([r, c]) => { next[keyFor(r, c)] = true; });
+        return next;
+      });
+
+      setToast(`🔎 Found: ${match.word}`);
+      setTimeout(() => setToast(null), 1500);
+      return true;
+    }
+    return false;
+  };
+
   const onCellPointerDown = (r: number, c: number) => {
+    // If we have a selectionStart and we click it again, cancel
+    if (selectionStart && selectionStart[0] === r && selectionStart[1] === c) {
+        setSelectionStart(null);
+        setDragHighlight({});
+        return;
+    }
     setDragActive(true);
     setDragStart([r, c]);
-    setDragHover([r, c]);
-    setDragHighlight({ [keyFor(r, c)]: true });
+    setDragCurrent([r, c]);
+    
+    // If no selection start, highlight this cell as potential start
+    if (!selectionStart) {
+        setDragHighlight({ [keyFor(r, c)]: true });
+    } else {
+        // If we have a selection start, show line to here
+        const cells = getLineCells(selectionStart, [r, c]);
+        const hl: Record<string, boolean> = {};
+        cells.forEach(([cr, cc]) => hl[keyFor(cr, cc)] = true);
+        setDragHighlight(hl);
+    }
   };
 
   const onCellPointerEnter = (r: number, c: number) => {
-    if (!dragActive || !dragStart) return;
-    setDragHover([r, c]);
-    const cells = getLineCells(dragStart, [r, c]);
-    if (cells.length) {
-      const hl: Record<string, boolean> = {};
-      cells.forEach(([cr, cc]) => {
-        hl[keyFor(cr, cc)] = true;
-      });
-      setDragHighlight(hl);
+    if (dragActive && dragStart) {
+      setDragCurrent([r, c]);
+      // If dragging, prioritize drag start
+      const origin = selectionStart || dragStart;
+      const cells = getLineCells(origin, [r, c]);
+      if (cells.length) {
+        const hl: Record<string, boolean> = {};
+        cells.forEach(([cr, cc]) => {
+          hl[keyFor(cr, cc)] = true;
+        });
+        setDragHighlight(hl);
+      }
     }
   };
 
   const onCellPointerUp = (r: number, c: number) => {
-    if (!dragActive || !dragStart) return;
-    const matchWord = checkSelectionMatch(dragStart, [r, c]);
-    if (matchWord) {
-      setFoundWords(prev => ({ ...prev, [matchWord]: true }));
-      setToast(`🔎 Found: ${matchWord}`);
-      setTimeout(() => setToast(null), 1500);
-    }
     setDragActive(false);
+    
+    // 1. Dragging finished (start != end)
+    if (dragStart && (dragStart[0] !== r || dragStart[1] !== c)) {
+        // Try match from dragStart
+        const matched = attemptMatch(dragStart, [r, c]);
+        
+        // If drag failed, maybe they were trying to connect to selectionStart?
+        if (!matched && selectionStart) {
+            attemptMatch(selectionStart, [r, c]);
+        }
+        
+        setSelectionStart(null);
+        setDragHighlight({});
+        setDragStart(null);
+        setDragCurrent(null);
+        return;
+    }
+
+    // 2. Click (start == end)
+    if (selectionStart) {
+        // Completed a click-click pair
+        attemptMatch(selectionStart, [r, c]);
+        setSelectionStart(null);
+        setDragHighlight({});
+    } else {
+        // Started a click-click pair
+        setSelectionStart([r, c]);
+        setDragHighlight({ [keyFor(r, c)]: true });
+    }
+    
     setDragStart(null);
-    setDragHover(null);
-    setDragHighlight({});
+    setDragCurrent(null);
   };
 
   const advanceTask = async () => {
@@ -894,50 +1135,63 @@ export default function GamesPage() {
               </div>
             </div>
 
-            {session.wordSearch && (
+            {session.wordSearch && !wordSearchCompleted ? (
               <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="font-bold mb-2">Word Grid (rows/cols shuffle every play)</div>
                     <div className="overflow-x-auto pb-2">
                       <div
-                        className="grid gap-1 select-none min-w-max mx-auto"
+                        className="grid gap-1 select-none min-w-max mx-auto p-2 bg-gray-100 rounded-xl border border-gray-300"
                         style={{
-                          gridTemplateColumns: `repeat(${session.wordSearch.grid.length}, minmax(28px, 1fr))`,
+                          gridTemplateColumns: `repeat(${session.wordSearch.grid.length}, minmax(36px, 1fr))`,
                           touchAction: 'none',
                         }}
                       >
                         {session.wordSearch.grid.map((row, rIdx) =>
-                          row.map((cell, cIdx) => (
+                          row.map((cell, cIdx) => {
+                             const k = keyFor(rIdx, cIdx);
+                             const isFound = foundCells[k];
+                             const isHighlight = dragHighlight[k];
+                             const isStart = selectionStart && selectionStart[0] === rIdx && selectionStart[1] === cIdx;
+                             
+                             return (
                             <div
                               key={`${rIdx}-${cIdx}`}
-                              className={`text-center text-sm font-mono border rounded py-1 cursor-pointer w-7 h-8 flex items-center justify-center ${
-                                dragHighlight[keyFor(rIdx, cIdx)] ? 'bg-yellow-200 border-yellow-500' : 'bg-gray-50'
+                              className={`text-center font-bold text-lg border rounded select-none touch-none flex items-center justify-center aspect-square transition-all duration-200 ${
+                                isFound
+                                  ? 'bg-green-400 border-green-600 text-white shadow-sm transform scale-95'
+                                  : isHighlight || isStart
+                                  ? 'bg-yellow-300 border-yellow-500 text-yellow-900 shadow-inner'
+                                  : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-50'
                               }`}
-                              onPointerDown={() => onCellPointerDown(rIdx, cIdx)}
+                              onPointerDown={(e) => {
+                                e.currentTarget.releasePointerCapture(e.pointerId); // Crucial for touch dragging across elements
+                                onCellPointerDown(rIdx, cIdx);
+                              }}
                               onPointerEnter={() => onCellPointerEnter(rIdx, cIdx)}
                               onPointerUp={() => onCellPointerUp(rIdx, cIdx)}
                             >
                               {cell}
                             </div>
-                          )),
+                          );
+                          }),
                         )}
                       </div>
                     </div>
                   </div>
                   <div className="w-full md:w-64">
-                    <div className="font-bold mb-2">Find these words (tap when you locate)</div>
+                    <div className="font-bold mb-2">Find these words (drag or click start/end)</div>
                     <div className="space-y-2">
                       {session.wordSearch.targets.map(word => (
-                        <button
+                        <div
                           key={word}
-                          onClick={() => setFoundWords(prev => ({ ...prev, [word]: !prev[word] }))}
-                          className={`w-full text-left px-3 py-2 rounded border ${
-                            foundWords[word] ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-white'
+                          className={`w-full text-left px-3 py-2 rounded border transition-colors ${
+                            foundWords[word] ? 'border-green-500 bg-green-50 text-green-900 font-medium' : 'border-gray-300 bg-white text-gray-600'
                           }`}
                         >
                           {foundWords[word] ? '✅' : '🔍'} {word}
-                        </button>
+                        </div>
                       ))}
                     </div>
                     <Button className="w-full mt-3" variant="success" onClick={evaluateWordSearch}>
@@ -951,102 +1205,168 @@ export default function GamesPage() {
                   </div>
                 </div>
               </div>
-            )}
+            ) : (
+              <>
+                {currentTask && currentTask.kind === 'mcq' && (
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+                    <div className="text-lg font-bold text-islamic-dark mb-4">{currentTask.prompt}</div>
+                    <div className="space-y-3">
+                      {currentTask.options.map(opt => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setSelectedOption(opt.id)}
+                          className={`w-full text-left px-4 py-3 rounded border-2 transition ${
+                            selectedOption === opt.id
+                              ? 'border-islamic-blue bg-blue-50'
+                              : 'border-gray-200 bg-white hover:border-islamic-blue'
+                          }`}
+                        >
+                          {opt.text}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <Button variant="success" onClick={evaluateMcq} disabled={!selectedOption || loading}>
+                        Submit
+                      </Button>
+                      <Button variant="secondary" onClick={quitGame}>
+                        Quit
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-            {currentTask && currentTask.kind === 'mcq' && (
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <div className="text-lg font-bold text-islamic-dark mb-4">{currentTask.prompt}</div>
-                <div className="space-y-3">
-                  {currentTask.options.map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSelectedOption(opt.id)}
-                      className={`w-full text-left px-4 py-3 rounded border-2 transition ${
-                        selectedOption === opt.id
-                          ? 'border-islamic-blue bg-blue-50'
-                          : 'border-gray-200 bg-white hover:border-islamic-blue'
-                      }`}
-                    >
-                      {opt.text}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <Button variant="success" onClick={evaluateMcq} disabled={!selectedOption || loading}>
-                    Submit
-                  </Button>
-                  <Button variant="secondary" onClick={quitGame}>
-                    Quit
-                  </Button>
-                </div>
-              </div>
-            )}
+                {currentTask && currentTask.kind === 'match' && currentTask.meta?.meanings && (
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+                    <div className="font-bold text-lg mb-4">{currentTask.prompt}</div>
+                    <div className="space-y-4">
+                      {(currentTask.meta.meanings as any[]).map((meaning: any) => (
+                        <div key={meaning.id} className="border rounded-lg p-3">
+                          <div className="font-semibold text-islamic-dark mb-2">{meaning.text}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {currentTask.options.map(opt => (
+                              <button
+                                key={opt.id}
+                                onClick={() => setMatchAnswers(prev => ({ ...prev, [meaning.id]: opt.id }))}
+                                className={`text-left px-3 py-2 rounded border-2 transition ${
+                                  matchAnswers[meaning.id] === opt.id
+                                    ? 'border-islamic-green bg-green-50'
+                                    : 'border-gray-200 bg-white hover:border-islamic-blue'
+                                }`}
+                              >
+                                {opt.text}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <Button variant="success" onClick={evaluateMatch} disabled={loading}>
+                        Submit Matches
+                      </Button>
+                      <Button variant="secondary" onClick={quitGame}>
+                        Quit
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-            {currentTask && currentTask.kind === 'match' && currentTask.meta?.meanings && (
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <div className="font-bold text-lg mb-4">{currentTask.prompt}</div>
-                <div className="space-y-4">
-                  {(currentTask.meta.meanings as any[]).map((meaning: any) => (
-                    <div key={meaning.id} className="border rounded-lg p-3">
-                      <div className="font-semibold text-islamic-dark mb-2">{meaning.text}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {currentTask.options.map(opt => (
-                          <button
-                            key={opt.id}
-                            onClick={() => setMatchAnswers(prev => ({ ...prev, [meaning.id]: opt.id }))}
-                            className={`text-left px-3 py-2 rounded border-2 transition ${
-                              matchAnswers[meaning.id] === opt.id
-                                ? 'border-islamic-green bg-green-50'
-                                : 'border-gray-200 bg-white hover:border-islamic-blue'
-                            }`}
+                {currentTask && currentTask.kind === 'timeline' && currentTask.meta?.ordered && (
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+                    <div className="font-bold text-lg mb-4">{currentTask.prompt}</div>
+                    <div className="space-y-3">
+                      {(currentTask.meta!.ordered as string[]).map(event => (
+                        <div key={event} className="flex items-center gap-3">
+                          <select
+                            className="border rounded px-2 py-1"
+                            value={timelineOrder[event] || ''}
+                            onChange={e => setTimelineOrder(prev => ({ ...prev, [event]: Number(e.target.value) }))}
                           >
-                            {opt.text}
-                          </button>
+                            <option value="">Order</option>
+                            {(currentTask.meta!.ordered as string[]).map((_, idx) => (
+                              <option key={idx} value={idx + 1}>{idx + 1}</option>
+                            ))}
+                          </select>
+                          <span className="text-gray-800">{event}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <Button variant="success" onClick={evaluateTimeline} disabled={loading}>
+                        Submit Order
+                      </Button>
+                      <Button variant="secondary" onClick={quitGame}>
+                        Quit
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {currentTask && currentTask.kind === 'hangman' && (
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+                    <div className="flex flex-col items-center">
+                      <div className="text-xl font-bold mb-2">{currentTask.prompt}</div>
+                      {/* Hint removed as per user request */}
+                      {/* <div className="text-sm text-gray-500 mb-6">Hint: {currentTask.meta?.hint}</div> */}
+
+                      {/* Hangman Visual */}
+                      <div className="mb-6 relative w-48 h-48 border-b-4 border-gray-800 bg-gray-50 rounded-lg shadow-inner">
+                        {/* Gallows */}
+                        <div className="absolute bottom-0 left-8 w-2 h-40 bg-gray-800"></div>
+                        <div className="absolute top-4 left-8 w-24 h-2 bg-gray-800"></div>
+                        <div className="absolute top-4 left-28 w-2 h-8 bg-gray-800"></div>
+                        
+                        {/* Stick Figure */}
+                        {hangmanWrongCount >= 1 && <div className="absolute top-12 left-25 w-8 h-8 rounded-full border-4 border-islamic-dark left-[102px]"></div>} {/* Head */}
+                        {hangmanWrongCount >= 2 && <div className="absolute top-20 left-[116px] w-1 h-14 bg-islamic-dark"></div>} {/* Body */}
+                        {hangmanWrongCount >= 3 && <div className="absolute top-24 left-[116px] w-8 h-1 bg-islamic-dark transform -rotate-45 origin-left"></div>} {/* Left Arm */}
+                        {hangmanWrongCount >= 4 && <div className="absolute top-24 left-[116px] w-8 h-1 bg-islamic-dark transform rotate-45 origin-left"></div>} {/* Right Arm */}
+                        {hangmanWrongCount >= 5 && <div className="absolute top-32 left-[116px] w-8 h-1 bg-islamic-dark transform -rotate-45 origin-left"></div>} {/* Left Leg */}
+                        {hangmanWrongCount >= 6 && <div className="absolute top-32 left-[116px] w-8 h-1 bg-islamic-dark transform rotate-45 origin-left"></div>} {/* Right Leg */}
+                      </div>
+
+                      {/* Word Display */}
+                      <div className="flex gap-2 mb-8 flex-wrap justify-center">
+                        {(currentTask.meta?.word as string)?.split('').map((char, idx) => (
+                          <div key={idx} className="w-10 h-12 flex items-center justify-center border-b-4 border-gray-800 text-2xl font-bold uppercase bg-white rounded-t shadow-sm">
+                             {hangmanGuesses.has(char.toUpperCase()) ? char.toUpperCase() : ''}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <Button variant="success" onClick={evaluateMatch} disabled={loading}>
-                    Submit Matches
-                  </Button>
-                  <Button variant="secondary" onClick={quitGame}>
-                    Quit
-                  </Button>
-                </div>
-              </div>
-            )}
 
-            {currentTask && currentTask.kind === 'timeline' && currentTask.meta?.ordered && (
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <div className="font-bold text-lg mb-4">{currentTask.prompt}</div>
-                <div className="space-y-3">
-                  {(currentTask.meta!.ordered as string[]).map(event => (
-                    <div key={event} className="flex items-center gap-3">
-                      <select
-                        className="border rounded px-2 py-1"
-                        value={timelineOrder[event] || ''}
-                        onChange={e => setTimelineOrder(prev => ({ ...prev, [event]: Number(e.target.value) }))}
-                      >
-                        <option value="">Order</option>
-                        {(currentTask.meta!.ordered as string[]).map((_, idx) => (
-                          <option key={idx} value={idx + 1}>{idx + 1}</option>
-                        ))}
-                      </select>
-                      <span className="text-gray-800">{event}</span>
+                      {/* Keyboard */}
+                      <div className="grid grid-cols-7 gap-2 max-w-lg w-full">
+                        {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(char => {
+                          const isGuessed = hangmanGuesses.has(char);
+                          const word = (currentTask.meta?.word as string)?.toUpperCase() || '';
+                          const isWrong = isGuessed && !word.includes(char);
+                          const isRight = isGuessed && word.includes(char);
+                          
+                          return (
+                            <button
+                              key={char}
+                              onClick={() => handleHangmanGuess(char)}
+                              disabled={isGuessed || hangmanWrongCount >= 6}
+                              className={`p-2 rounded font-bold text-lg transition-colors shadow-sm ${
+                                isRight ? 'bg-green-500 text-white' :
+                                isWrong ? 'bg-red-500 text-white' :
+                                'bg-white border border-gray-200 hover:bg-blue-50 text-gray-800'
+                              } ${isGuessed ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {char}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-8">
+                         <Button variant="secondary" onClick={quitGame}>Quit Game</Button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <Button variant="success" onClick={evaluateTimeline} disabled={loading}>
-                    Submit Order
-                  </Button>
-                  <Button variant="secondary" onClick={quitGame}>
-                    Quit
-                  </Button>
-                </div>
-              </div>
+                  </div>
+                )}
+              </>
             )}
 
             {feedback && (

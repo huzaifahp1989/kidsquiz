@@ -2,15 +2,27 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { LogOut, Menu, X } from 'lucide-react';
 
+interface NavbarUser {
+  name: string;
+  points: number;
+  level: string;
+}
+
 interface NavbarProps {
   username?: string;
   points?: number;
   level?: string;
-  onLogout?: () => void;
+  onLogout?: () => void | Promise<void>;
+  user?: NavbarUser | null;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogout, user }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const displayUsername = username || user?.name;
+  const displayPoints = points !== undefined ? points : user?.points;
+  const displayLevel = level || user?.level;
+
 
   return (
     <nav className="bg-gradient-to-r from-islamic-blue to-islamic-green text-white p-4 shadow-lg sticky top-0 z-50">
@@ -41,31 +53,33 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
           {/* Desktop User Actions */}
           <div className="hidden md:flex flex-col items-end gap-2">
             <div className="flex items-center gap-6">
-              {username && (
-                <div className="text-sm text-right">
-                  <p className="font-semibold">{username}</p>
-                  <p className="text-xs opacity-90">{level || 'Beginner'}</p>
-                </div>
-              )}
-              
-              {points !== undefined && (
-                <div className="bg-white bg-opacity-20 px-3 py-2 rounded-lg">
-                  <p className="text-sm">⭐ {points} pts</p>
-                </div>
-              )}
-              
-              {onLogout ? (
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    console.log('Desktop logout clicked');
-                    if (onLogout) await onLogout();
-                  }}
-                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition active:scale-95"
-                >
-                  <LogOut size={18} />
-                  <span className="text-sm">Logout</span>
-                </button>
+              {displayUsername ? (
+                <>
+                  <div className="text-sm text-right">
+                    <p className="font-semibold">{displayUsername}</p>
+                    <p className="text-xs opacity-90">{displayLevel || 'Beginner'}</p>
+                  </div>
+                  
+                  {displayPoints !== undefined && (
+                    <div className="bg-white bg-opacity-20 px-3 py-2 rounded-lg">
+                      <p className="text-sm">⭐ {displayPoints} pts</p>
+                    </div>
+                  )}
+                  
+                  {onLogout && (
+                    <button
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        console.log('Desktop logout clicked');
+                        if (onLogout) await onLogout();
+                      }}
+                      className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition active:scale-95"
+                    >
+                      <LogOut size={18} />
+                      <span className="text-sm">Logout</span>
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="flex items-center gap-3">
                   <Link
@@ -116,16 +130,16 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, onLogou
 
             {/* Mobile User Stats & Actions */}
             <div className="pt-4 border-t border-white/20">
-              {username ? (
+              {displayUsername ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between bg-white/10 p-3 rounded-lg">
                     <div>
-                      <p className="font-semibold">{username}</p>
-                      <p className="text-xs opacity-90">{level || 'Beginner'}</p>
+                      <p className="font-semibold">{displayUsername}</p>
+                      <p className="text-xs opacity-90">{displayLevel || 'Beginner'}</p>
                     </div>
-                    {points !== undefined && (
+                    {displayPoints !== undefined && (
                       <div className="bg-white/20 px-3 py-1 rounded-lg">
-                        <p className="text-sm">⭐ {points} pts</p>
+                        <p className="text-sm">⭐ {displayPoints} pts</p>
                       </div>
                     )}
                   </div>

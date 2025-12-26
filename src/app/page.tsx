@@ -80,6 +80,14 @@ export default function Home() {
       tone: 'from-rose-50 to-rose-100 border-rose-200',
       tag: 'Claim your prize',
     },
+    {
+      title: 'Multiplayer Arena',
+      desc: 'Challenge friends in real-time quizzes.',
+      href: '/multiplayer',
+      icon: '🏰',
+      tone: 'from-purple-50 to-purple-100 border-purple-200',
+      tag: 'New!',
+    },
   ];
 
   if (loading) {

@@ -29,6 +29,66 @@ export interface WordSearchConfig {
   };
 }
 
+export interface HangmanWord {
+  word: string;
+  hint: string;
+}
+
+export interface HangmanConfig {
+  topics: {
+    [key: string]: HangmanWord[];
+  };
+}
+
+export const hangmanTopics: HangmanConfig = {
+  topics: {
+    'Prophets': [
+      { word: 'ADAM', hint: 'The first man and prophet.' },
+      { word: 'NUH', hint: 'Built the Ark to save believers.' },
+      { word: 'IBRAHIM', hint: 'Built the Kaaba with his son.' },
+      { word: 'ISMAIL', hint: 'Son of Ibrahim, associated with Zamzam.' },
+      { word: 'YUSUF', hint: 'Prophet known for his beauty and dream interpretation.' },
+      { word: 'MUSA', hint: 'Spoke to Allah and parted the sea.' },
+      { word: 'DAWOOD', hint: 'Given the Zabur and defeated Jalut.' },
+      { word: 'SULAYMAN', hint: 'Could speak to animals and control jinn.' },
+      { word: 'YUNUS', hint: 'Swallowed by a giant whale.' },
+      { word: 'ISA', hint: 'Miraculously born without a father.' },
+      { word: 'MUHAMMAD', hint: 'The Seal of Prophets and Messenger of Mercy.' },
+    ],
+    'Pillars of Islam': [
+      { word: 'SHAHADA', hint: 'The declaration of faith.' },
+      { word: 'SALAH', hint: 'The five daily prayers.' },
+      { word: 'ZAKAT', hint: 'Giving charity to the poor.' },
+      { word: 'SAWM', hint: 'Fasting during the month of Ramadan.' },
+      { word: 'HAJJ', hint: 'Pilgrimage to the House of Allah.' },
+    ],
+    'Quran': [
+      { word: 'FATIHA', hint: 'The opening chapter of the Quran.' },
+      { word: 'BAQARAH', hint: 'The longest surah in the Quran.' },
+      { word: 'IKHLAS', hint: 'Surah describing the Oneness of Allah.' },
+      { word: 'YASEEN', hint: 'Often called the heart of the Quran.' },
+      { word: 'REHMAN', hint: 'Surah known as the Bride of the Quran.' },
+      { word: 'AYATULKURSI', hint: 'The Verse of the Throne.' },
+    ],
+    'Places': [
+      { word: 'MAKKAH', hint: 'Birthplace of the Prophet (PBUH).' },
+      { word: 'MADINAH', hint: 'City where the Prophet (PBUH) migrated to.' },
+      { word: 'JERUSALEM', hint: 'Location of Masjid Al-Aqsa.' },
+      { word: 'ARAFAT', hint: 'Key plain visited during Hajj.' },
+      { word: 'MINA', hint: 'Place of tent city during Hajj.' },
+      { word: 'CAVEHIRA', hint: 'Where the first revelation was received.' },
+    ],
+    'Values': [
+      { word: 'SABR', hint: 'Patience and perseverance.' },
+      { word: 'SHUKR', hint: 'Gratitude to Allah.' },
+      { word: 'TAQWA', hint: 'Consciousness and fear of Allah.' },
+      { word: 'IKHLAS', hint: 'Sincerity in actions.' },
+      { word: 'ADAB', hint: 'Good manners and etiquette.' },
+      { word: 'AMANAH', hint: 'Trustworthiness and honesty.' },
+    ],
+  }
+};
+
 export const seerahWordSearch: WordSearchConfig = {
   wordPool: [
     'MAKKAH',
@@ -549,4 +609,77 @@ export const hiddenChallenges: BaseTask[] = [
   },
 ];
 
-// (Removed) Minimal test pool used for local testing
+// ============================================================================
+// PROPHET TIMELINE GAME - Match events to prophets
+// ============================================================================
+export const prophetTimelinePool = [
+  { id: 'adam-creation', prompt: 'First human and prophet created', correct: 'Prophet Adam', options: ['Prophet Nuh', 'Prophet Adam', 'Prophet Ibrahim', 'Prophet Musa'] },
+  { id: 'nuh-flood', prompt: 'Preached for 950 years; flood was sent', correct: 'Prophet Nuh', options: ['Prophet Nuh', 'Prophet Lut', 'Prophet Hud', 'Prophet Musa'] },
+  { id: 'ibrahim-kaaba', prompt: 'Built the Kaaba with his son Ismail', correct: 'Prophet Ibrahim', options: ['Prophet Ibrahim', 'Prophet Sulayman', 'Prophet Dawood', 'Prophet Musa'] },
+  { id: 'yusuf-egypt', prompt: 'Sold into slavery, became ruler in Egypt', correct: 'Prophet Yusuf', options: ['Prophet Yusuf', 'Prophet Musa', 'Prophet Yunus', 'Prophet Harun'] },
+  { id: 'musa-sea', prompt: 'Parted the Red Sea for his people', correct: 'Prophet Musa', options: ['Prophet Musa', 'Prophet Dawood', 'Prophet Nuh', 'Prophet Ibrahim'] },
+  { id: 'dawood-stone', prompt: 'Defeated Jalut with a stone and sling', correct: 'Prophet Dawood', options: ['Prophet Dawood', 'Prophet Sulayman', 'Prophet Yusuf', 'Prophet Musa'] },
+  { id: 'sulayman-wind', prompt: 'Given dominion over wind and could speak to animals', correct: 'Prophet Sulayman', options: ['Prophet Sulayman', 'Prophet Dawood', 'Prophet Yunus', 'Prophet Hud'] },
+  { id: 'yunus-whale', prompt: 'Swallowed by a great whale and lived in its belly', correct: 'Prophet Yunus', options: ['Prophet Yunus', 'Prophet Nuh', 'Prophet Lut', 'Prophet Hud'] },
+];
+
+// ============================================================================
+// QURAN VERSES MATCHING - Match surahs to their main themes
+// ============================================================================
+export const quranVersesPool = [
+  { id: 'fatiha', prompt: 'Opening chapter of Quran; contains the essential duas', correct: 'Surah Al-Fatiha', options: ['Surah Al-Fatiha', 'Surah Al-Ikhlas', 'Surah Ar-Rahman', 'Surah Al-Baqarah'] },
+  { id: 'ikhlas', prompt: 'Describes the Oneness of Allah; equals one-third of the Quran', correct: 'Surah Al-Ikhlas', options: ['Surah Al-Ikhlas', 'Surah As-Samad', 'Surah Al-Kauthar', 'Surah Ad-Duha'] },
+  { id: 'rahman', prompt: 'Known as "The Bride of the Quran"; emphasizes mercy', correct: 'Surah Ar-Rahman', options: ['Surah Ar-Rahman', 'Surah Al-Waqiah', 'Surah Al-Mulk', 'Surah As-Sajdah'] },
+  { id: 'yaseen', prompt: 'Called "The Heart of the Quran"; story of believers in a town', correct: 'Surah Yaseen', options: ['Surah Yaseen', 'Surah Taha', 'Surah Ha-Meem', 'Surah Al-Anfal'] },
+  { id: 'kahf', prompt: 'Contains the story of Dhul-Qarnayn and companions in cave', correct: 'Surah Al-Kahf', options: ['Surah Al-Kahf', 'Surah Al-Baqarah', 'Surah Maryam', 'Surah Taha'] },
+  { id: 'ayatulkursi', prompt: 'The Throne Verse; greatest verse of Quran', correct: 'Ayat-ul-Kursi (Surah Al-Baqarah)', options: ['Ayat-ul-Kursi', 'Ayat-us-Sabiq', 'Ayat-ul-Qadr', 'Ayat-ul-Nur'] },
+];
+
+// ============================================================================
+// SUNNAH PRACTICES MEMORY - Identify authentic sunnah actions
+// ============================================================================
+export const sunnahPracticesPool = [
+  { id: 'miswak', prompt: 'Using a stick to clean teeth before prayer', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Not mentioned', 'Bidah (Innovation)', 'Forbidden'] },
+  { id: 'siesta', prompt: 'Taking a short afternoon nap (Qailulah)', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Not recommended', 'Bidah', 'Discouraged'] },
+  { id: 'walking', prompt: 'Walking to the masjid for prayer', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Optional', 'Not mentioned', 'Makrooh'] },
+  { id: 'greeting', prompt: 'Saying Assalamu Alaikum when meeting someone', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Modern custom', 'Not required', 'Optional only'] },
+  { id: 'eating-dates', prompt: 'Breaking fast with dates and water', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Not mentioned', 'Cultural only', 'Not recommended'] },
+  { id: 'right-hand', prompt: 'Eating and giving with right hand', correct: 'Authentic Sunnah', options: ['Authentic Sunnah', 'Not important', 'Only for nobles', 'Left hand is fine too'] },
+];
+
+// ============================================================================
+// DUA COMPLETION - Complete famous Islamic duas
+// ============================================================================
+export const duaCompletionPool = [
+  { id: 'dua-fatiha', prompt: 'Alhamdulillahi Rabbil ___', correct: 'Alamin', options: ['Alamin', 'Noor', 'Ghafoor', 'Salaam'] },
+  { id: 'dua-basmala', prompt: 'Bismillah ___ ar-Rahman ar-Rahim', correct: 'Al-Rahman', options: ['Al-Rahman', 'Ar-Rahim', 'Al-Alim', 'Al-Qadir'] },
+  { id: 'dua-tahiyyah', prompt: 'At-tahiyyatu lillahi wa as-salawatu wa ___', correct: 'at-tayyibat', options: ['at-tayyibat', 'ar-rahmat', 'al-barkah', 'as-salaam'] },
+  { id: 'dua-morning', prompt: 'Allahumma inni asaluka al-afiyah fi ___', correct: 'ad-dunya wal-akhirah', options: ['ad-dunya wal-akhirah', 'al-qalb', 'ash-shifa', 'an-nasr'] },
+  { id: 'dua-protection', prompt: 'Bismillah alladhee la yadurru ma\'a ismihi shay\'un fi ___', correct: 'al-ardi wa la as-sama', options: ['al-ardi wa la as-sama', 'ad-dunya', 'al-jahannam', 'al-jism'] },
+  { id: 'dua-sleep', prompt: 'Allahumma bismika amutu wa ___', correct: 'ahya', options: ['ahya', 'namu', 'aqumu', 'adumu'] },
+];
+
+// ============================================================================
+// ISLAMIC LEADERS & SCHOLARS - Match leaders to their achievements
+// ============================================================================
+export const islamicLeadersPool = [
+  { id: 'abu-bakr', prompt: 'First Caliph; known for extreme kindness and wealth spent for Islam', correct: 'Abu Bakr As-Siddiq', options: ['Abu Bakr As-Siddiq', 'Umar ibn Al-Khattab', 'Uthman ibn Affan', 'Ali ibn Abi Talib'] },
+  { id: 'umar', prompt: 'Second Caliph; known as "Faruq" (Distinguisher); conquered many lands', correct: 'Umar ibn Al-Khattab', options: ['Umar ibn Al-Khattab', 'Abu Bakr', 'Ali ibn Abi Talib', 'Uthman'] },
+  { id: 'uthman', prompt: 'Third Caliph; compiled the Quran into one standard copy', correct: 'Uthman ibn Affan', options: ['Uthman ibn Affan', 'Umar ibn Al-Khattab', 'Ali ibn Abi Talib', 'Hassan'] },
+  { id: 'ali', prompt: 'Fourth Caliph; cousin and son-in-law of Prophet; known as "Asadullah" (Lion of Allah)', correct: 'Ali ibn Abi Talib', options: ['Ali ibn Abi Talib', 'Hassan ibn Ali', 'Hussain ibn Ali', 'Abu Talib'] },
+  { id: 'khadijah', prompt: 'First believer; wife of Prophet; wealthy businesswoman', correct: 'Khadijah bint Khuwaylid', options: ['Khadijah bint Khuwaylid', 'Aishah', 'Hafsa', 'Zainab'] },
+  { id: 'aishah', prompt: 'Wife of Prophet; known as "Mother of Believers"; great hadith scholar', correct: 'Aishah bint Abi Bakr', options: ['Aishah bint Abi Bakr', 'Hafsa bint Umar', 'Umm Salamah', 'Aishah bint Talha'] },
+];
+
+// ============================================================================
+// ISLAMIC MONTHS & CALENDAR - Knowledge of Islamic calendar
+// ============================================================================
+export const islamicCalendarPool = [
+  { id: 'hijrah', prompt: 'The Islamic calendar begins with Prophet Muhammad\'s ___', correct: 'Migration to Madinah (Hijrah)', options: ['Migration to Madinah (Hijrah)', 'Birth', 'First revelation', 'Death'] },
+  { id: 'hijri-year', prompt: 'How many months are in the Islamic (Hijri) year?', correct: '12 months', options: ['12 months', '13 months', '10 months', '11 months'] },
+  { id: 'ramadan-month', prompt: 'Ramadan is the ___ month of the Islamic calendar', correct: '9th month', options: ['9th month', '3rd month', '7th month', '12th month'] },
+  { id: 'rajab', prompt: 'Rajab is one of the sacred months in which fighting is ___', correct: 'Forbidden', options: ['Forbidden', 'Encouraged', 'Allowed', 'Delayed'] },
+  { id: 'dhul-hijjah', prompt: 'In which month does the Hajj pilgrimage occur?', correct: 'Dhul-Hijjah', options: ['Dhul-Hijjah', 'Dhul-Qadah', 'Shawwal', 'Rabi\' al-Awwal'] },
+  { id: 'lunar-days', prompt: 'The Islamic year is shorter than solar year by approximately ___ days', correct: '11 days', options: ['11 days', '5 days', '15 days', '20 days'] },
+];
+

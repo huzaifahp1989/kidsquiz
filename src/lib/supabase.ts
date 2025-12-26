@@ -1,22 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// CRITICAL: Ensure session persistence for WebView compatibility
+// Only throw error if we're in the browser and keys are missing
+if (typeof window !== 'undefined' && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+// Create the Supabase client - the createClient function handles missing keys gracefully
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    // ALWAYS persist session - critical for mobile WebView
     persistSession: true,
-    // Auto-refresh tokens to prevent session expiry
     autoRefreshToken: true,
-    // Detect OAuth redirects
     detectSessionInUrl: true,
-    // Force localStorage (required for WebView)
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    // Store session in URL for cross-domain support
     storageKey: 'supabase.auth.token',
-    // Disable flow for PKCE - simpler for WebView
     flowType: 'implicit',
   },
 });

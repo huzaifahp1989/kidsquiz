@@ -1,8 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
+
+// Lazy import supabase to avoid SSR issues
+const getSupabase = () => {
+  // This will only be called on the client
+  const { supabase } = require('@/lib/supabase');
+  return supabase;
+};
 
 type KidProfile = {
   uid: string;
@@ -69,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = useCallback(async () => {
     if (!user) return;
     
+    const supabase = getSupabase();
     console.log('Manually refreshing profile for:', user.id);
     const { data, error } = await supabase
       .from('users')
@@ -132,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initAuth = async () => {
       try {
+        const supabase = getSupabase();
         // First, try to get existing session
         const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
         
@@ -173,7 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
 
     // Also listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const supabase = getSupabase();
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       console.log('Auth event:', event, 'Session:', session?.user?.id);
       if (isMounted) {
         const u = session?.user ? { id: session.user.id, email: session.user.email } : null;
@@ -209,6 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     
+    const supabase = getSupabase();
     console.log('Setting up real-time subscription for user:', user.id);
     const channel = supabase
       .channel(`user-profile-${user.id}`)
@@ -217,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         schema: 'public',
         table: 'users',
         filter: `uid=eq.${user.id}`,
-      }, (payload) => {
+      }, (payload: any) => {
         console.log('Real-time update received (users):', payload);
         refreshProfile();
       })
@@ -226,7 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         schema: 'public',
         table: 'users_points',
         filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
+      }, (payload: any) => {
         console.log('Real-time update received (users_points):', payload);
         refreshProfile();
       })
@@ -275,6 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // 3. Try to notify Supabase (but don't block/fail on it)
         try {
+           const supabase = getSupabase();
            await supabase.auth.signOut();
         } catch (e) {
            console.warn('Supabase signOut failed, ignoring:', e);

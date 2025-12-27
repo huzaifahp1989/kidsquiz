@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type Tab = 'lobby' | 'active' | 'leaderboard';
+export type Tab = 'lobby' | 'leaderboard';
 
 interface MultiplayerTabsProps {
   activeTab: Tab;
@@ -19,16 +19,6 @@ export const MultiplayerTabs: React.FC<MultiplayerTabsProps> = ({ activeTab, onT
         }`}
       >
         🏰 Lobby
-      </button>
-      <button
-        onClick={() => onTabChange('active')}
-        className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
-          activeTab === 'active'
-            ? 'bg-green-100 text-green-700'
-            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-        }`}
-      >
-        🎮 Active Games
       </button>
       <button
         onClick={() => onTabChange('leaderboard')}

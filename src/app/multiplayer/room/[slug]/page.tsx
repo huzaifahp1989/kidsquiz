@@ -16,7 +16,7 @@ export default function RoomPage() {
     setReady(true);
   }, []);
 
-  const code = params?.code as string;
+  const code = params?.slug as string;
 
   if (!ready || !code) {
     return (

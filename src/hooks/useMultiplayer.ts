@@ -15,10 +15,48 @@ export function useMultiplayer() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [activeRooms, setActiveRooms] = useState<any[]>([]);
+
   useEffect(() => {
     if (!profile) return;
 
-    const channel = supabase.channel('global_lobby', {
+    // Fetch initial active rooms
+    const fetchRooms = async () => {
+      const { data } = await supabase
+        .from('multiplayer_rooms')
+        .select('*')
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: false });
+      
+      if (data) setActiveRooms(data);
+    };
+
+    fetchRooms();
+
+    // Subscribe to room changes
+    const channel = supabase.channel('room_updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'multiplayer_rooms' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.status === 'waiting') {
+              setActiveRooms(prev => [payload.new, ...prev]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (payload.new.status !== 'waiting') {
+              setActiveRooms(prev => prev.filter(r => r.id !== payload.new.id));
+            } else {
+               setActiveRooms(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setActiveRooms(prev => prev.filter(r => r.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    const globalChannel = supabase.channel('global_lobby', {
       config: {
         presence: {
           key: profile.uid,
@@ -132,5 +170,5 @@ export function useMultiplayer() {
     }
   };
 
-  return { onlineUsers, isConnected, createRoom, joinRoom, error };
+  return { onlineUsers, isConnected, createRoom, joinRoom, error, activeRooms };
 }

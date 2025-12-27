@@ -1,29 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useMultiplayer } from '@/hooks/useMultiplayer';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 
 export const MultiplayerLobby: React.FC = () => {
   const { profile } = useAuth();
-  const { onlineUsers, isConnected, createRoom, joinRoom, error } = useMultiplayer();
+  const { onlineUsers, isConnected, createRoom, joinRoom, error, activeRooms } = useMultiplayer();
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [selectedGame, setSelectedGame] = useState<'quiz' | 'word-scramble' | 'hangman' | 'quran-verses' | 'prophet-timeline' | 'dua-completion'>('quiz');
-  const [activeRooms, setActiveRooms] = useState<any[]>([]);
-  const [showRoomPreview, setShowRoomPreview] = useState(true);
   const router = useRouter();
-
-  // Simulate fetching active rooms from backend
-  useEffect(() => {
-    if (isConnected) {
-      setActiveRooms([
-        { code: 'QUIZ01', game: 'quiz', players: 2, maxPlayers: 4, level: 'medium' },
-        { code: 'WORD02', game: 'word-scramble', players: 1, maxPlayers: 4, level: 'easy' },
-        { code: 'HANG03', game: 'hangman', players: 3, maxPlayers: 4, level: 'hard' },
-      ]);
-    }
-  }, [isConnected]);
 
   const handleCreate = async () => {
     if (isCreating) return;
@@ -38,11 +25,16 @@ export const MultiplayerLobby: React.FC = () => {
     }
   };
 
-  const handleJoin = async () => {
-    if (!joinCode) return;
-    const success = await joinRoom(joinCode.toUpperCase());
+  const handleJoin = async (code?: string) => {
+    const codeToJoin = code || joinCode;
+    if (!codeToJoin) return;
+    
+    // If passed directly, ensure we set state too for consistency
+    if (code) setJoinCode(code);
+
+    const success = await joinRoom(codeToJoin.toUpperCase());
     if (success) {
-      router.push(`/multiplayer/room/${joinCode.toUpperCase()}`);
+      router.push(`/multiplayer/room/${codeToJoin.toUpperCase()}`);
     }
   };
 
@@ -109,7 +101,7 @@ export const MultiplayerLobby: React.FC = () => {
           </span>
         </div>
         <span className="text-sm font-semibold">
-          {activeRooms.filter((r) => r.game === selectedGame).length} active
+          {activeRooms.filter((r) => r.game_type === selectedGame).length} active
         </span>
       </div>
 
@@ -156,7 +148,7 @@ export const MultiplayerLobby: React.FC = () => {
               />
               <div className="flex gap-2">
                 <button 
-                  onClick={handleJoin}
+                  onClick={() => handleJoin()}
                   disabled={!joinCode}
                   className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -177,10 +169,10 @@ export const MultiplayerLobby: React.FC = () => {
         <div className="lg:col-span-2">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
             <span className="mr-2">🏠</span> 
-            Open Rooms ({activeRooms.filter((r) => r.game === selectedGame).length})
+            Open Rooms ({activeRooms.filter((r) => r.game_type === selectedGame).length})
           </h3>
           
-          {activeRooms.filter((r) => r.game === selectedGame).length === 0 ? (
+          {activeRooms.filter((r) => r.game_type === selectedGame).length === 0 ? (
             <div className="bg-white rounded-xl p-12 border border-gray-100 text-center">
               <div className="text-5xl mb-4">🎪</div>
               <p className="text-gray-600 font-semibold mb-4">No rooms for {gameOptions.find((g) => g.id === selectedGame)?.name}</p>
@@ -189,22 +181,20 @@ export const MultiplayerLobby: React.FC = () => {
           ) : (
             <div className="grid gap-4">
               {activeRooms
-                .filter((r) => r.game === selectedGame)
+                .filter((r) => r.game_type === selectedGame)
                 .map((room: any) => (
                   <div
                     key={room.code}
                     className="bg-white rounded-xl p-4 border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer"
-                    onClick={() => {
-                      setJoinCode(room.code);
-                      handleJoin();
-                    }}
+                    onClick={() => handleJoin(room.code)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="font-bold text-gray-800 mb-1">Room {room.code}</div>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span>👥 {room.players}/{room.maxPlayers}</span>
-                          <span className="capitalize">{room.level} level</span>
+                          {/* Placeholder for players count since we don't have it yet */}
+                          <span>⏱️ Waiting...</span> 
+                          <span className="capitalize text-xs text-gray-400">{new Date(room.created_at).toLocaleTimeString()}</span>
                         </div>
                       </div>
                       <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">

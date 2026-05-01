@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// Service role key has higher / no rate limits on the GoTrue token endpoint.
-// Falls back to anon key if service role key isn't set.
-const API_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /** Parse "try again in X seconds" / "try again in M:SS" from an error message */
 function parseRetrySeconds(msg: string): number | null {
@@ -20,6 +16,18 @@ function parseRetrySeconds(msg: string): number | null {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!SUPABASE_URL) {
+      return NextResponse.json(
+        { error: 'Server sign-in proxy is not configured (NEXT_PUBLIC_SUPABASE_URL is missing).', retryAfter: null },
+        { status: 500 }
+      );
+    }
+    if (!SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Server sign-in proxy is not configured (SUPABASE_SERVICE_ROLE_KEY is missing).', retryAfter: null },
+        { status: 500 }
+      );
+    }
     const { email, password } = await req.json();
 
     if (!email || !password) {
@@ -33,8 +41,8 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': API_KEY,
-        'Authorization': `Bearer ${API_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
       },
       body: JSON.stringify({ email, password }),
     });

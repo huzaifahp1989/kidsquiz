@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
 import { mobileAuthHelper } from '@/lib/mobile-auth';
 import { Button } from '@/components/Button';
@@ -21,7 +21,7 @@ const DB_FIX_SQL = `-- QUICK FIX: Run the full repair script from the repo
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [age, setAge] = useState<number | ''>('');
+  const [age, setAge] = useState('');
   const [madrasahName, setMadrasahName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -36,17 +36,23 @@ export default function SignupPage() {
   const [debugUid, setDebugUid] = useState<string | null>(null);
   const [debugClaims, setDebugClaims] = useState<Record<string, any> | null>(null);
   const isDev = process.env.NODE_ENV !== 'production';
+  const [debugMode, setDebugMode] = useState(false);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<any>(null);
   const [referralCode, setReferralCode] = useState('');
-  const [showNewsletterPopup, setShowNewsletterPopup] = useState(false);
-  const [pendingRedirectUrl, setPendingRedirectUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const code = new URLSearchParams(window.location.search).get('ref') || '';
     setReferralCode(code.trim().toUpperCase());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      setDebugMode(new URLSearchParams(window.location.search).get('debug') === '1');
+    } catch {}
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -55,17 +61,24 @@ export default function SignupPage() {
     setSuccess(false);
     setNeedsEmailConfirmation(false);
 
+    if (!supabaseConfigured) {
+      setError('Sign up is temporarily unavailable because Supabase is not configured.');
+      return;
+    }
     const trimmedName = name.trim();
     if (!trimmedName) return setError('Please enter your name.');
     if (trimmedName.length < 2) return setError('Name must be at least 2 characters.');
-    if (age === '' || Number.isNaN(age)) return setError('Please enter your age.');
-    if (Number(age) < 5 || Number(age) > 14) return setError('Age must be between 5 and 14.');
-    if (!madrasahName.trim()) return setError('Please enter your madrasah name.');
-    if (!contactNumber.trim()) return setError('Please enter a contact number.');
+
+    const ageNumber = parseInt(age.trim(), 10);
+    if (!age.trim() || Number.isNaN(ageNumber)) return setError('Please enter your age.');
+    if (ageNumber < 1 || ageNumber > 120) return setError('Please enter a valid age.');
+
+    const trimmedMadrasah = madrasahName.trim();
+    if (!trimmedMadrasah) return setError('Please enter your madrasah name.');
+
     const contactDigits = contactNumber.replace(/\D/g, '');
-    if (contactDigits.length < 7 || contactDigits.length > 15) {
-      return setError('Please enter a valid contact number.');
-    }
+    if (!contactDigits) return setError('Please enter your contact number.');
+    if (contactDigits.length < 7 || contactDigits.length > 15) return setError('Please enter a valid contact number.');
     if (!email) return setError('Please enter your email.');
     if (password.length < 6) return setError('Password must be at least 6 characters.');
     if (password !== confirm) return setError('Passwords do not match.');
@@ -87,8 +100,8 @@ export default function SignupPage() {
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/signin?message=${encodeURIComponent('Please sign in after confirming your email.')}` : undefined,
           data: {
             name: trimmedName,
-            age: Number(age),
-            madrasahName: madrasahName.trim(),
+            age: ageNumber,
+            madrasahName: trimmedMadrasah,
             contactNumber: contactNumber.trim(),
           },
         },
@@ -103,8 +116,6 @@ export default function SignupPage() {
       if (!session?.user) {
         setNeedsEmailConfirmation(true);
         setSuccess(true);
-        setPendingRedirectUrl('/signin?message=' + encodeURIComponent('Please confirm your email, then sign in.'));
-        setShowNewsletterPopup(true);
         return;
       }
 
@@ -115,8 +126,8 @@ export default function SignupPage() {
       const { error: metaErr } = await supabase.auth.updateUser({
         data: {
           name: trimmedName,
-          age: Number(age),
-          madrasahName: madrasahName.trim(),
+          age: ageNumber,
+          madrasahName: trimmedMadrasah,
           contactNumber: contactNumber.trim(),
         },
       });
@@ -125,13 +136,13 @@ export default function SignupPage() {
       }
 
       // Create user profile with provided details now that we have an authenticated session
-      console.log('Creating profile for:', uid, email, name, age);
+      console.log('Creating profile for:', uid, emailNormalized, trimmedName);
       const baseProfile = {
         uid,
         role: 'kid',
         name: trimmedName,
-        age: Number(age),
-        madrasahname: madrasahName.trim(),
+        age: ageNumber,
+        madrasahname: trimmedMadrasah,
         email: emailNormalized,
         points: 0,
         weeklypoints: 0,
@@ -147,12 +158,21 @@ export default function SignupPage() {
       };
 
       const contactValue = contactNumber.trim();
-      let profileRes = await upsertProfile({ ...baseProfile, contactnumber: contactValue });
+      let profileRes = await upsertProfile({
+        ...baseProfile,
+        contactnumber: contactValue,
+      });
       if (profileRes.error?.code === '42703') {
-        profileRes = await upsertProfile({ ...baseProfile, contact_number: contactValue });
+        profileRes = await upsertProfile({
+          ...baseProfile,
+          contact_number: contactValue,
+        });
       }
       if (profileRes.error?.code === '42703') {
-        profileRes = await upsertProfile({ ...baseProfile, contactNumber: contactValue });
+        profileRes = await upsertProfile({
+          ...baseProfile,
+          contactNumber: contactValue,
+        });
       }
       if (profileRes.error?.code === '42703') {
         profileRes = await upsertProfile(baseProfile);
@@ -182,8 +202,7 @@ export default function SignupPage() {
       }
 
       setSuccess(true);
-      setPendingRedirectUrl('/');
-      setShowNewsletterPopup(true);
+      router.push('/');
     } catch (err: any) {
       console.error('Signup process error FULL OBJECT:', err);
       let msg = err?.message || 'Failed to sign up. Please try again.';
@@ -244,79 +263,31 @@ export default function SignupPage() {
     }
   };
 
-  const handleNewsletterDismiss = () => {
-    setShowNewsletterPopup(false);
-    if (pendingRedirectUrl) router.push(pendingRedirectUrl);
-  };
-
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 sm:px-6 py-8">
-      {/* Newsletter Popup */}
-      {showNewsletterPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-            {/* Header banner */}
-            <div className="bg-gradient-to-r from-[#14b8a6] to-[#0d9488] px-6 py-5 text-white text-center">
-              <div className="text-4xl mb-2">📬</div>
-              <h2 className="text-xl font-bold">Stay in the Loop!</h2>
-              <p className="text-white/90 text-sm mt-1">Join the Kids Zone Newsletter</p>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left">
-                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">New Update</p>
-                <p className="mt-1 text-sm font-semibold text-amber-900">
-                  Check your Rewards page for your progress, new updates and important announcements.
-                </p>
-                <a
-                  href="/rewards"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-600"
-                >
-                  Open Rewards Page in New Tab
-                </a>
-              </div>
-
-              <p className="text-[#374151] text-sm text-center">
-                Get weekly updates delivered straight to your inbox:
-              </p>
-              <ul className="space-y-2 text-sm text-[#374151]">
-                <li className="flex items-center gap-2"><span className="text-[#14b8a6] font-bold">⏰</span> Weekly reminders &amp; Islamic tips</li>
-                <li className="flex items-center gap-2"><span className="text-[#fbbf24] font-bold">🏆</span> Winner announcements &amp; prize updates</li>
-                <li className="flex items-center gap-2"><span className="text-[#8b5cf6] font-bold">📅</span> Upcoming events &amp; challenges</li>
-                <li className="flex items-center gap-2"><span className="text-[#ec4899] font-bold">✨</span> New games, quizzes &amp; activities</li>
-              </ul>
-
-              <a
-                href="https://mailchi.mp/3a9b946d45cb/imedia"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleNewsletterDismiss}
-                className="block w-full text-center py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-bold rounded-xl hover:opacity-90 transition"
-              >
-                Subscribe to Newsletter 📩
-              </a>
-
-              <button
-                onClick={handleNewsletterDismiss}
-                className="block w-full text-center py-2 text-sm text-[#6b7280] hover:text-[#374151] transition"
-              >
-                Maybe later
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6 sm:p-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2">Create Your Account</h1>
-        <p className="text-center text-gray-600 mb-6 text-sm sm:text-base">For kids ages 5–14</p>
+        <p className="text-center text-gray-600 mb-6 text-sm sm:text-base">Start earning points for learning.</p>
+
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Having issues signing up? Send a WhatsApp message to{' '}
+          <a className="font-semibold text-islamic-blue hover:underline" href="https://wa.me/447404644610" target="_blank" rel="noopener noreferrer">
+            07404644610
+          </a>{' '}
+          and we will send you login details.
+        </div>
 
         {referralCode ? (
           <div className="mb-4 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 text-sm">
             Referral code applied: <strong>{referralCode}</strong>
           </div>
         ) : null}
+
+        {!supabaseConfigured && (
+          <div className="mb-4 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 px-4 py-3 text-sm">
+            Sign up is currently unavailable because Supabase keys are missing on this app.
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
@@ -370,30 +341,32 @@ export default function SignupPage() {
           </div>
         )}
 
-        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-          <div className="flex items-center justify-between gap-3">
-            <div className="font-semibold">Supabase check</div>
-            <button
-              type="button"
-              onClick={runSupabaseCheck}
-              disabled={checking}
-              className="text-xs font-semibold underline disabled:opacity-60"
-            >
-              {checking ? 'Checking…' : 'Run check'}
-            </button>
+        {isDev && debugMode && (
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-semibold">Supabase check</div>
+              <button
+                type="button"
+                onClick={runSupabaseCheck}
+                disabled={checking}
+                className="text-xs font-semibold underline disabled:opacity-60"
+              >
+                {checking ? 'Checking…' : 'Run check'}
+              </button>
+            </div>
+            <div className="mt-2">
+              Storage: {(() => {
+                const s = mobileAuthHelper.checkStorageAvailability();
+                return (s.localStorage || s.sessionStorage) ? 'OK' : 'Blocked';
+              })()}
+            </div>
+            {checkResult && (
+              <pre className="mt-2 max-h-40 overflow-auto rounded bg-white border border-slate-200 p-2">
+                {JSON.stringify(checkResult, null, 2)}
+              </pre>
+            )}
           </div>
-          <div className="mt-2">
-            Storage: {(() => {
-              const s = mobileAuthHelper.checkStorageAvailability();
-              return (s.localStorage || s.sessionStorage) ? 'OK' : 'Blocked';
-            })()}
-          </div>
-          {checkResult && (
-            <pre className="mt-2 max-h-40 overflow-auto rounded bg-white border border-slate-200 p-2">
-              {JSON.stringify(checkResult, null, 2)}
-            </pre>
-          )}
-        </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
@@ -409,36 +382,20 @@ export default function SignupPage() {
 
           <div>
             <label className="block text-sm font-medium mb-1">Age</label>
-            <div className="space-y-2">
-              <input
-                type="number"
-                min={5}
-                max={14}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-islamic-blue"
-                value={age}
-                onChange={(e) => setAge(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="Enter your age (5-14)"
-              />
-              {age !== '' && !Number.isNaN(Number(age)) && (
-                <div className="text-sm">
-                  <span className="text-gray-600">Level: </span>
-                  {Number(age) >= 6 && Number(age) <= 8 && <span className="font-bold text-green-600">Explorers (Easy)</span>}
-                  {Number(age) >= 9 && Number(age) <= 11 && <span className="font-bold text-blue-600">Champions (Medium)</span>}
-                  {Number(age) >= 12 && Number(age) <= 14 && <span className="font-bold text-purple-600">Scholars (Advanced)</span>}
-                  {(Number(age) < 6 || Number(age) > 14) && <span className="text-red-500">Please enter age between 6 and 14</span>}
-                </div>
-              )}
-              <p className="text-xs text-gray-500">
-                We customize your quizzes and games based on your age group:
-                <br/>• 6-8: Fun & Easy
-                <br/>• 9-11: Challenging
-                <br/>• 12-14: Advanced
-              </p>
-            </div>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-islamic-blue"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="e.g., 10"
+              min={1}
+              max={120}
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Madrasah Name</label>
+            <label className="block text-sm font-medium mb-1">Madrasah name</label>
             <input
               type="text"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-islamic-blue"
@@ -449,13 +406,13 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Contact Number</label>
+            <label className="block text-sm font-medium mb-1">Contact number</label>
             <input
               type="tel"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-islamic-blue"
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
-              placeholder="e.g., +44 7400 000000"
+              placeholder="e.g., +44 7404 644610"
               autoComplete="tel"
             />
           </div>
@@ -517,7 +474,7 @@ export default function SignupPage() {
           </div>
 
           <div className="pt-2">
-            <Button type="submit" disabled={loading} className="w-full">
+            <Button type="submit" disabled={!supabaseConfigured || loading} className="w-full">
               {loading ? 'Creating account…' : 'Sign Up'}
             </Button>
           </div>

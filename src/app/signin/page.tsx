@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
+import { mobileAuthHelper } from '@/lib/mobile-auth';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
 import { Eye, EyeOff, Shield } from 'lucide-react';
@@ -17,6 +18,7 @@ export default function SignInPage() {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [info, setInfo]             = useState<string | null>(null);
+  const [progress, setProgress]     = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [offline, setOffline]       = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -93,9 +95,30 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user?.id) {
+        router.replace(getNextPath());
+      }
+    })();
+  }, [router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
       const stored = window.localStorage.getItem('iklp_remember_me');
       setRememberMe(stored === null ? true : stored === 'true');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const storage = mobileAuthHelper.checkStorageAvailability();
+      if (!storage.localStorage && storage.sessionStorage) {
+        setRememberMe(false);
+        persistRemember(false);
+      }
     } catch {}
   }, []);
 
@@ -104,13 +127,32 @@ export default function SignInPage() {
   const emailValid      = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail), [normalizedEmail]);
   const passwordValid   = useMemo(() => password.length >= 6, [password]);
 
+  const sanitizeNextPath = (raw: string | null): string => {
+    if (!raw) return '/';
+    const next = raw.startsWith('/') ? raw : '/';
+    const pathOnly = next.split('?')[0]?.split('#')[0] ?? next;
+    if (pathOnly === '/signin' || pathOnly === '/signup' || pathOnly === '/reset-password') return '/';
+    return next;
+  };
+
   const getNextPath = () => {
     if (typeof window === 'undefined') return '/';
     try {
       const next = new URLSearchParams(window.location.search).get('next');
-      if (!next) return '/';
-      return next.startsWith('/') ? next : '/';
+      return sanitizeNextPath(next);
     } catch { return '/'; }
+  };
+
+  const parseRetrySeconds = (msg: string): number | null => {
+    const secMatch = msg.match(/try again in (\d+)\s*second/i);
+    if (secMatch) return parseInt(secMatch[1], 10);
+    const minMatch = msg.match(/try again in (\d+):(\d{2})/i);
+    if (minMatch) return parseInt(minMatch[1], 10) * 60 + parseInt(minMatch[2], 10);
+    const remMatch = msg.match(/\b(\d+)\s*s\s*remaining\b/i);
+    if (remMatch) return parseInt(remMatch[1], 10);
+    const remWordMatch = msg.match(/\b(\d+)\s*seconds?\s*remaining\b/i);
+    if (remWordMatch) return parseInt(remWordMatch[1], 10);
+    return null;
   };
 
   const persistRemember = (val: boolean) => {
@@ -119,11 +161,34 @@ export default function SignInPage() {
 
   const waitForSession = async (attempts = 6, delayMs = 200) => {
     for (let i = 0; i < attempts; i++) {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user?.id) return data.session;
+      try {
+        const { data } = await withTimeout(supabase.auth.getSession(), 5000);
+        if (data.session?.user?.id) return data.session;
+      } catch {}
       await new Promise((r) => setTimeout(r, delayMs));
     }
     return null;
+  };
+
+  const fetchJsonWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+    const controller = new AbortController();
+    const t = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      const json = await res.json().catch(() => ({} as any));
+      return { res, json };
+    } finally {
+      window.clearTimeout(t);
+    }
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number) => {
+    return await Promise.race<T>([
+      promise,
+      new Promise<T>((_, reject) =>
+        window.setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs)
+      ),
+    ]);
   };
 
   /* ── MFA ─────────────────────────────────────────────── */
@@ -159,16 +224,36 @@ export default function SignInPage() {
     if (!/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; }
     authInFlightRef.current = true;
     setLoading(true);
+    setProgress('Verifying code…');
     try {
       const api: any = (supabase.auth as any).mfa;
       const { error: verifyErr } = await api.verify({ factorId: mfaFactorId, challengeId: mfaChallengeId, code });
       if (verifyErr) { setError(verifyErr.message || 'Invalid code. Please try again.'); return; }
       setInfo('Signed in! Redirecting…');
-      router.replace(getNextPath());
+      const next = getNextPath();
+      router.replace(next);
+      const isMobile =
+        (() => {
+          try {
+            return mobileAuthHelper.isMobileBrowser() || mobileAuthHelper.isWebView();
+          } catch {
+            return false;
+          }
+        })();
+      if (isMobile && typeof window !== 'undefined') {
+        window.setTimeout(() => {
+          try {
+            if (window.location.pathname.startsWith('/signin')) {
+              window.location.href = next;
+            }
+          } catch {}
+        }, 700);
+      }
     } catch (err: any) {
       setError(err?.message || 'Could not verify code. Please try again.');
     } finally {
       setLoading(false);
+      setProgress(null);
       authInFlightRef.current = false;
     }
   };
@@ -180,7 +265,10 @@ export default function SignInPage() {
     setError(null);
     setLoading(true);
     try {
-      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+      const redirectTo =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/signin?next=${encodeURIComponent(getNextPath())}`
+          : undefined;
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
       if (oauthErr) setError(oauthErr.message || 'Social sign-in failed. Please try again.');
     } catch (e: any) {
@@ -210,11 +298,23 @@ export default function SignInPage() {
     if (authInFlightRef.current || loading) return;
     setError(null);
     setInfo(null);
+    setProgress(null);
     setTouched({ email: true, password: true, mfa: false });
 
+    if (!supabaseConfigured) {
+      setError('Sign-in is temporarily unavailable because Supabase is not configured.');
+      return;
+    }
     if (!normalizedEmail || !emailValid) { setError('Please enter a valid email address.'); return; }
     if (!password || !passwordValid)     { setError('Password must be at least 6 characters.'); return; }
     if (offline) { setError('You appear to be offline. Please reconnect and try again.'); return; }
+    try {
+      const storage = mobileAuthHelper.checkStorageAvailability();
+      if (!storage.localStorage && !storage.sessionStorage) {
+        setError('Your browser is blocking storage. Please enable cookies/local storage and try again.');
+        return;
+      }
+    } catch {}
     // Client-side cooldown check
     try {
       const until = parseInt(window.localStorage.getItem('iklp_signin_locked_until') ?? '0', 10);
@@ -227,126 +327,195 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      // Route through our server-side proxy so Supabase sees Vercel's IP,
-      // not the user's browser IP — this bypasses the per-IP rate limit.
-      const res = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
+      const isMobile =
+        (() => {
+          try {
+            return mobileAuthHelper.isMobileBrowser() || mobileAuthHelper.isWebView();
+          } catch {
+            return false;
+          }
+        })();
 
-      const json = await res.json();
-
-      if (!res.ok) {
-        const raw: string = json?.error ?? '';
-        const isNetwork =
-          raw.toLowerCase().includes('failed to fetch') ||
-          raw.toLowerCase().includes('networkerror') ||
-          raw.toLowerCase().includes('network request failed');
-        if (isNetwork) {
-          setError('Could not reach the server. Please check your internet connection.');
+      const finishSuccess = async (uid: string) => {
+        setProgress('Checking session…');
+        const session = await waitForSession(isMobile ? 12 : 6, isMobile ? 250 : 200);
+        if (!session) {
+          setError('Sign-in succeeded but your browser blocked the session. Please enable cookies/local storage and try again.');
+          setProgress(null);
           return;
         }
-        // Rate-limited — try direct Supabase auth as fallback, then show countdown
-        const isRateLimit =
-          res.status === 429 ||
-          raw.toLowerCase().includes('rate limit') ||
-          raw.toLowerCase().includes('too many');
-        if (isRateLimit) {
-          // Try direct sign-in as a fallback path
-          try {
-            const { data: directData, error: directErr } = await supabase.auth.signInWithPassword({
-              email: normalizedEmail,
-              password,
-            });
-            if (!directErr && directData.session) {
-              // Direct sign-in worked — continue normally
-              const uid = directData.session.user.id;
-              clearFailedAttempts();
-              ensureUserProfile(uid).catch(() => {});
-              const needsMfa = await beginMfaIfNeeded();
-              if (needsMfa) { setInfo('Enter your 2FA code to continue.'); return; }
-              setInfo('Signed in! Redirecting…');
-              router.replace(getNextPath());
+        clearFailedAttempts();
+        ensureUserProfile(uid).catch(() => {});
+        let needsMfa = false;
+        try {
+          needsMfa = await withTimeout(beginMfaIfNeeded(), 7000);
+        } catch {
+          needsMfa = false;
+        }
+        if (needsMfa) {
+          setInfo('Enter your 2FA code to continue.');
+          setProgress(null);
+          return;
+        }
+        setInfo('Signed in! Redirecting…');
+        setProgress('Redirecting…');
+        const next = getNextPath();
+        // Instant redirect - use window.location for immediate navigation
+        window.location.href = next;
+      };
+
+      if (isMobile) {
+        try {
+          setProgress('Contacting server…');
+          const { res, json } = await fetchJsonWithTimeout(
+            '/api/auth/signin',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: normalizedEmail, password }),
+            },
+            12000
+          );
+
+          if (res.ok) {
+            const access_token = json?.access_token;
+            const refresh_token = json?.refresh_token;
+            const uid = json?.user?.id;
+            if (access_token && refresh_token && uid) {
+              setProgress('Saving session…');
+              await withTimeout(supabase.auth.setSession({ access_token, refresh_token }), 8000);
+              await finishSuccess(uid);
               return;
             }
-          } catch {}
-          // Direct also failed — enforce cooldown
-          const wait = json?.retryAfter ?? 120;
+          } else {
+            const raw: string = json?.error ?? '';
+            const waitFromApi: number | null = typeof json?.retryAfter === 'number' ? json.retryAfter : null;
+            const wait = waitFromApi ?? parseRetrySeconds(raw) ?? (res.status === 429 ? 60 : null);
+            if (wait && wait > 0) {
+              const lockUntil = Date.now() + wait * 1000;
+              try { window.localStorage.setItem('iklp_signin_locked_until', String(lockUntil)); } catch {}
+              setRetryIn(wait);
+              setError(`Too many requests. Please wait ${wait} seconds then try again.`);
+              return;
+            }
+          }
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            setError('Sign-in is taking too long on this connection. Please try again.');
+            setProgress(null);
+            return;
+          }
+        }
+      }
+
+      setProgress('Signing in…');
+      const { data: directData, error: directErr } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        }),
+        12000
+      );
+
+      if (!directErr && directData.session?.user?.id) {
+        const directUid = directData.session.user.id;
+        await finishSuccess(directUid);
+        return;
+      }
+
+      const directMsg = directErr?.message || '';
+      const directWait = parseRetrySeconds(directMsg) ?? ((directErr as any)?.status === 429 ? 60 : null);
+      if (directWait && directWait > 0) {
+        setProgress('Contacting server…');
+        const { res, json } = await fetchJsonWithTimeout(
+          '/api/auth/signin',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: normalizedEmail, password }),
+          },
+          12000
+        );
+
+        if (!res.ok) {
+          const raw: string = json?.error ?? directMsg;
+          const waitFromApi: number | null =
+            typeof json?.retryAfter === 'number' ? json.retryAfter : null;
+          const wait = waitFromApi ?? parseRetrySeconds(raw) ?? directWait;
           const lockUntil = Date.now() + wait * 1000;
           try { window.localStorage.setItem('iklp_signin_locked_until', String(lockUntil)); } catch {}
           setRetryIn(wait);
-          setError(`Too many sign-in attempts. Please wait ${wait} seconds then try again.`);
+          setError(`Too many requests. Please wait ${wait} seconds then try again.`);
           return;
         }
-        recordFailedAttempt();
-        setError(raw || 'Sign-in failed. Please check your email and password.');
+
+        const access_token = json?.access_token;
+        const refresh_token = json?.refresh_token;
+        const uid = json?.user?.id;
+        if (!access_token || !refresh_token || !uid) {
+          const lockUntil = Date.now() + directWait * 1000;
+          try { window.localStorage.setItem('iklp_signin_locked_until', String(lockUntil)); } catch {}
+          setRetryIn(directWait);
+          setError(`Too many requests. Please wait ${directWait} seconds then try again.`);
+          setProgress(null);
+          return;
+        }
+
+        setProgress('Saving session…');
+        await withTimeout(supabase.auth.setSession({ access_token, refresh_token }), 8000);
+        await finishSuccess(uid);
         return;
       }
 
-      const { access_token, refresh_token, user } = json;
-      if (!access_token || !refresh_token) {
-        setError('Sign-in failed — no session returned. Please try again.');
-        return;
-      }
-
-      // Load the returned tokens into the browser Supabase client
-      await supabase.auth.setSession({ access_token, refresh_token });
-
-      const uid = user?.id;
-      if (!uid) { setError('Sign-in failed — no user returned. Please try again.'); return; }
-
-      const session = await waitForSession();
-      if (!session) {
-        setError('Sign-in succeeded but your browser blocked the session cookie. Please enable cookies and try again.');
-        return;
-      }
-
-      clearFailedAttempts();
-      ensureUserProfile(uid).catch(() => {});
-
-      const needsMfa = await beginMfaIfNeeded();
-      if (needsMfa) { setInfo('Enter your 2FA code to continue.'); return; }
-
-      setInfo('Signed in! Redirecting…');
-      router.replace(getNextPath());
+      recordFailedAttempt();
+      setError(directMsg || 'Sign-in failed. Please check your email and password.');
     } catch (err: any) {
       recordFailedAttempt();
       setError(err?.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+      setProgress(null);
       authInFlightRef.current = false;
     }
   };
 
   /* ── Render ──────────────────────────────────────────── */
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 sm:px-6 py-10 bg-gradient-to-b from-islamic-light via-white to-white">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 sm:px-6 py-10 bg-[#fdf8f3] pattern-islamic">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-stretch">
 
         {/* Left panel */}
-        <div className="hidden md:flex flex-col justify-between rounded-2xl p-8 bg-gradient-to-br from-indigo-700 to-purple-900 text-white shadow-xl">
+        <div className="hidden md:flex flex-col justify-between rounded-2xl p-8 bg-gradient-to-br from-[#0d9488] to-[#115e59] text-white shadow-xl">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
               <Shield size={14} /> Secure Sign In
             </div>
             <h1 className="mt-5 text-3xl font-extrabold leading-tight">Welcome back</h1>
             <p className="mt-3 text-white/80">
-              Sign in to continue your learning journey. Your account stays signed in until you log out.
+              Sign in to continue your Islamic learning journey. Your progress and points are saved to your account.
             </p>
+          </div>
+          <div className="mt-8 flex gap-4 text-4xl">
+            <span>🌙</span><span>📿</span><span>📖</span>
           </div>
         </div>
 
         {/* Right panel */}
-        <div className="w-full rounded-2xl bg-white shadow-xl border border-slate-100 p-6 sm:p-8">
+        <div className="w-full rounded-2xl bg-white shadow-xl border border-[#e5c9a3]/30 p-6 sm:p-8">
           <div className="md:hidden mb-6">
-            <h1 className="text-2xl font-extrabold text-slate-900">Sign in</h1>
-            <p className="mt-1 text-sm text-slate-600">Continue learning where you left off.</p>
+            <h1 className="text-2xl font-extrabold text-[#6a422d]">Sign in</h1>
+            <p className="mt-1 text-sm text-[#a1633a]">Continue learning where you left off.</p>
           </div>
 
           {offline && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               You are offline. Please reconnect to sign in.
+            </div>
+          )}
+
+          {!supabaseConfigured && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Email sign-in is currently unavailable because Supabase keys are missing on this app.
             </div>
           )}
 
@@ -372,7 +541,7 @@ export default function SignInPage() {
             <form id="signin-form" onSubmit={onSubmit} className="space-y-4" noValidate>
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-slate-800 mb-1">Email</label>
+                <label htmlFor="email" className="block text-sm font-semibold text-[#6a422d] mb-1">Email</label>
                 <input
                   id="email"
                   type="email"
@@ -381,8 +550,8 @@ export default function SignInPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                  className={`w-full rounded-xl border px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-400 transition ${
-                    touched.email && !emailValid ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                  className={`w-full rounded-xl border-2 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition ${
+                    touched.email && !emailValid ? 'border-[#ff6b6b] bg-[#fff5f5]' : 'border-[#e5c9a3]/40'
                   }`}
                 />
                 {touched.email && !emailValid && (
@@ -393,8 +562,8 @@ export default function SignInPage() {
               {/* Password */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="password" className="block text-sm font-semibold text-slate-800">Password</label>
-                  <button type="button" onClick={onForgotPassword} className="text-xs font-semibold text-indigo-600 hover:underline">
+                  <label htmlFor="password" className="block text-sm font-semibold text-[#6a422d]">Password</label>
+                  <button type="button" onClick={onForgotPassword} className="text-xs font-semibold text-[#14b8a6] hover:underline">
                     Forgot password?
                   </button>
                 </div>
@@ -407,8 +576,8 @@ export default function SignInPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-                    className={`w-full rounded-xl border px-3 py-2.5 pr-11 outline-none focus:ring-2 focus:ring-indigo-400 transition ${
-                      touched.password && !passwordValid ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                    className={`w-full rounded-xl border-2 px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition ${
+                      touched.password && !passwordValid ? 'border-[#ff6b6b] bg-[#fff5f5]' : 'border-[#e5c9a3]/40'
                     }`}
                   />
                   <button
@@ -426,34 +595,41 @@ export default function SignInPage() {
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2 text-sm text-slate-700 select-none cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-[#6a422d] select-none cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                  className="h-4 w-4 rounded border-[#e5c9a3] text-[#14b8a6]"
                 />
                 Keep me signed in
               </label>
 
-              <Button type="submit" disabled={loading || retryIn !== null} className="w-full">
+              <button
+                type="submit"
+                disabled={!supabaseConfigured || loading || retryIn !== null}
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {loading ? 'Signing in…' : retryIn !== null ? `Please wait ${retryIn}s…` : 'Sign In'}
-              </Button>
+              </button>
+              {loading && progress && (
+                <div className="text-center text-xs text-[#a1633a]">{progress}</div>
+              )}
 
-              <p className="text-sm text-center text-slate-600">
+              <p className="text-sm text-center text-[#6a422d]">
                 New here?{' '}
-                <Link href="/signup" className="text-indigo-600 font-semibold hover:underline">Create an account</Link>
+                <Link href="/signup" className="text-[#14b8a6] font-semibold hover:underline">Create an account</Link>
               </p>
             </form>
           ) : (
             /* MFA form */
             <form onSubmit={onVerifyMfa} className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">Two-factor authentication</p>
-                <p className="mt-1 text-sm text-slate-700">Enter the 6-digit code from your authenticator app.</p>
+              <div className="rounded-xl border border-[#e5c9a3]/30 bg-[#f9f0e6] px-4 py-3">
+                <p className="text-sm font-semibold text-[#6a422d]">Two-factor authentication</p>
+                <p className="mt-1 text-sm text-[#a1633a]">Enter the 6-digit code from your authenticator app.</p>
               </div>
               <div>
-                <label htmlFor="mfa" className="block text-sm font-semibold text-slate-800 mb-1">2FA code</label>
+                <label htmlFor="mfa" className="block text-sm font-semibold text-[#6a422d] mb-1">2FA code</label>
                 <input
                   id="mfa"
                   type="text"
@@ -462,12 +638,16 @@ export default function SignInPage() {
                   value={mfaCode}
                   onChange={(e) => setMfaCode(e.target.value)}
                   onBlur={() => setTouched((t) => ({ ...t, mfa: true }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6]"
                 />
               </div>
-              <Button type="submit" disabled={loading} className="w-full">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+              >
                 {loading ? 'Verifying…' : 'Verify & Continue'}
-              </Button>
+              </button>
               <button
                 type="button"
                 onClick={() => { setMfaRequired(false); setMfaCode(''); setMfaFactorId(null); setMfaChallengeId(null); }}

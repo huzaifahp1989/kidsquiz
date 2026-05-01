@@ -28,6 +28,7 @@ export default function TawafGame() {
   const rawDegRef   = useRef(START_DEG);
   const walkingRef  = useRef(false);
   const rafRef      = useRef<number>(0);
+  const tickRef     = useRef<() => void>(() => {});
 
   const tick = useCallback(() => {
     if (walkingRef.current) rawDegRef.current -= SPEED;
@@ -44,8 +45,12 @@ export default function TawafGame() {
       setGameState('complete');
       return;
     }
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(() => tickRef.current());
   }, []);
+
+  useEffect(() => {
+    tickRef.current = tick;
+  }, [tick]);
 
   useEffect(() => {
     if (gameState !== 'playing') return;

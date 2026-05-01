@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { LogOut, Menu, X, Home, Gamepad2, Trophy, BookOpen, Gift, Heart, ClipboardList } from 'lucide-react';
+import { LogOut, Menu, X, Home, Gamepad2, Trophy, BookOpen, Gift, Heart } from 'lucide-react';
 
 interface NavbarUser {
   name: string;
@@ -33,7 +33,6 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
     { href: '/quiz', label: 'Daily Quiz', icon: BookOpen },
     { href: '/games', label: 'Games', icon: Gamepad2 },
     { href: '/pledge', label: 'Pledge', icon: Heart },
-    { href: '/tasks', label: 'Tasks', icon: ClipboardList },
     { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
     { href: '/rewards', label: 'Rewards', icon: Gift },
   ];
@@ -72,9 +71,9 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
           {/* Desktop User Actions */}
           <div className="hidden md:flex items-center gap-3">
             {loading ? (
-              <div className="flex items-center gap-2 animate-pulse">
-                <div className="h-9 w-28 rounded-xl bg-slate-200" />
-                <div className="h-9 w-16 rounded-xl bg-slate-200" />
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-8 bg-[#f9f0e6] rounded-xl animate-pulse"></div>
+                <div className="w-12 h-8 bg-[#f9f0e6] rounded-xl animate-pulse"></div>
               </div>
             ) : displayUsername ? (
               <>
@@ -160,7 +159,12 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
               ))}
               
               <div className="mt-4 pt-4 border-t border-[#e5c9a3]/30">
-                {displayUsername ? (
+                {loading ? (
+                  <div className="px-4 py-3">
+                    <div className="w-32 h-6 bg-[#f9f0e6] rounded animate-pulse mb-2"></div>
+                    <div className="w-20 h-4 bg-[#f9f0e6] rounded animate-pulse"></div>
+                  </div>
+                ) : displayUsername ? (
                   <div className="space-y-3 px-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -196,11 +200,6 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
                         {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                       </button>
                     )}
-                  </div>
-                ) : loading ? (
-                  <div className="flex flex-col gap-2 px-4 animate-pulse">
-                    <div className="h-10 rounded-xl bg-slate-200" />
-                    <div className="h-10 rounded-xl bg-slate-200" />
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2 px-4">

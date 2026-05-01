@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { ensureUserProfile } from '@/lib/user-profile';
 import { supabase } from '@/lib/supabase';
 import { mobileAuthHelper } from '@/lib/mobile-auth';
@@ -105,6 +106,7 @@ const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [profile, setProfile] = useState<KidProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -223,75 +225,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Also listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      console.log('Auth event:', event, 'Session:', session?.user?.id);
       if (isMounted) {
         const u = session?.user ? { id: session.user.id, email: session.user.email } : null;
-        console.log('Auth state changed:', u?.id);
         setUser(u);
         
-        // If user signed in, ensure profile is loaded
-        if (u && event === 'SIGNED_IN') {
-          console.log('User signed in, loading profile...');
-          try {
-            const { data, error } = await supabase
-              .from('users')
-              .select('*')
-              .eq('uid', u.id)
-              .maybeSingle();
-            
-            if (error) {
-              console.error('Profile load error on sign in:', error);
-              // Try to create profile if it doesn't exist
-              const created = await ensureUserProfile(u.id);
-              if (created) {
-                const { data: newData } = await supabase
-                  .from('users')
-                  .select('*')
-                  .eq('uid', u.id)
-                  .maybeSingle();
-                if (newData) {
-                  const { data: pointsRow, error: pointsError } = await supabase
-                    .from('users_points')
-                    .select('total_points, weekly_points, monthly_points, today_points, badges, level')
-                    .eq('user_id', u.id)
-                    .maybeSingle();
-                  
-                  if (pointsError) {
-                    console.warn('users_points fetch error on sign in:', pointsError.message);
-                  }
-                  
-                  const mapped = mapProfile(newData, pointsRow);
-                  const finalName = await getBestName(mapped.name, mapped.email);
-                  if (finalName !== mapped.name && finalName && !isPlaceholderName(finalName)) {
-                    const { error: updateErr } = await supabase.from('users').update({ name: finalName }).eq('uid', u.id);
-                    if (updateErr) {}
-                  }
-                  setProfile({ ...mapped, name: finalName });
-                }
-              }
-            } else if (data) {
-              const { data: pointsRow, error: pointsError } = await supabase
-                .from('users_points')
-                .select('total_points, weekly_points, monthly_points, today_points, badges, level')
-                .eq('user_id', u.id)
-                .maybeSingle();
-              
-              if (pointsError) {
-                console.warn('users_points fetch error on sign in:', pointsError.message);
-              }
-              
-              const mapped = mapProfile(data, pointsRow);
-              const finalName = await getBestName(mapped.name, mapped.email);
-              if (finalName !== mapped.name && finalName && !isPlaceholderName(finalName)) {
-                const { error: updateErr } = await supabase.from('users').update({ name: finalName }).eq('uid', u.id);
-                if (updateErr) {}
-              }
-              setProfile({ ...mapped, name: finalName });
-            }
-          } catch (err) {
-            console.error('Error loading profile on sign in:', err);
-          }
-        } else if (!u && event === 'SIGNED_OUT') {
+        // Profile loading is handled by the profile effect below.
+        // Just set the user here to avoid double-fetching.
+        // Clear profile on sign out
+        if (!u) {
           setProfile(null);
         }
       }
@@ -305,26 +246,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Initial profile load
+  // Note: We do NOT re-fetch session on pathname change to avoid rate limiting.
+  // The auth state change listener and profile effect handle state consistency.
+
+  // Initial profile load - runs when user changes
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       if (!user) {
-        console.log('No user, clearing profile');
         setProfile(null);
         setLoading(false);
         return;
       }
       setLoading(true);
-      // Safety timeout — never stay stuck loading for more than 5 seconds
-      const safetyTimer = setTimeout(() => setLoading(false), 5000);
+      // Safety timeout — never stay stuck loading for more than 4 seconds
+      const safetyTimer = setTimeout(() => {
+        if (!cancelled) setLoading(false);
+      }, 4000);
       try {
         await refreshProfile();
       } finally {
         clearTimeout(safetyTimer);
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [user, refreshProfile]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]); // Only re-run when user ID changes, not on every refreshProfile change
 
   // Real-time subscription
   useEffect(() => {

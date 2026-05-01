@@ -34,6 +34,7 @@ export default function SafaMarwahGame() {
   const lastHillRef  = useRef<'safa' | 'marwah'>('safa'); // start at Safa
   const lapsRef      = useRef(0);
   const rafRef       = useRef<number>(0);
+  const tickRef      = useRef<() => void>(() => {});
 
   const tick = useCallback(() => {
     let nx = xRef.current;
@@ -59,8 +60,12 @@ export default function SafaMarwahGame() {
       if (lapsRef.current >= TOTAL_LAPS) { setGameState('complete'); return; }
     }
 
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(() => tickRef.current());
   }, []);
+
+  useEffect(() => {
+    tickRef.current = tick;
+  }, [tick]);
 
   useEffect(() => {
     if (gameState !== 'playing') return;

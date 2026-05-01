@@ -73,10 +73,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="app-shell-backdrop" aria-hidden="true" />
         <div className="app-shell-content fade-in">{children}</div>
       </main>
-      <footer className="bg-gradient-to-r from-kids-secondary to-kids-primary text-white p-8 text-center text-sm mt-12 rounded-t-3xl shadow-kids-hover">
-        <p className="font-bold text-lg mb-2">&copy; 2025 Islamic Kids Learning Platform</p>
-        <p className="opacity-90">A fun, safe, and educational Islamic learning platform for children aged 5-14</p>
-        <p className="text-xs opacity-75 mt-4">v1.0.3 • For educational purposes</p>
+      <footer className="bg-gradient-to-r from-[#0d9488] to-[#115e59] text-white p-8 text-center text-sm mt-12 rounded-t-3xl">
+        <p className="font-bold text-lg mb-2">&copy; 2025 Kids Zone - Islamic Learning Platform</p>
+        <p className="opacity-80">A fun, safe, and educational Islamic learning platform for children aged 5-14</p>
         <div className="mt-6 bg-white/10 inline-block px-6 py-3 rounded-2xl">
           <VisitorCounter />
         </div>

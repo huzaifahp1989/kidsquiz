@@ -10,6 +10,7 @@ export const MobileBottomNav = () => {
     { href: '/', label: 'Home', icon: '🏠' },
     { href: '/quiz', label: 'Quiz', icon: '🧠' },
     { href: '/games', label: 'Games', icon: '🎮' },
+    { href: '/stories', label: 'Stories', icon: '📖' },
     { href: '/pledge', label: 'Pledge', icon: '🌹' },
     { href: '/leaderboard', label: 'Ranks', icon: '🏆' },
     { href: '/rewards', label: 'Rewards', icon: '🎁' },

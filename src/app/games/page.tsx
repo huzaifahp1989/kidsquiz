@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from '@/components';
@@ -93,7 +93,6 @@ export default function GamesPage() {
   const [scrambleRevealed, setScrambleRevealed] = useState(false);
   const [points, setPoints] = useState(0);
   const pointsRef = useRef(0);
-  const scrambleWordsCorrect = useRef(0);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [mcqAnswered, setMcqAnswered] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -109,7 +108,7 @@ export default function GamesPage() {
     setCrosswordInputs({}); setCrosswordPuzzleState(null);
     setCrosswordSolved(false); setCrosswordErrors({}); setCrosswordChecked(false);
     setScrambleInput(''); setScrambleCorrect(false); setScrambleRevealed(false);
-    setPoints(0); pointsRef.current = 0; scrambleWordsCorrect.current = 0; setFeedback(null);
+    setPoints(0); pointsRef.current = 0; setFeedback(null);
     setMcqAnswered(false);
   };
 
@@ -159,7 +158,7 @@ export default function GamesPage() {
         break;
       }
       case 'scramble': {
-        tasks = shuffle(wordScramblePool).slice(0, 8).map(w => ({ id: `scramble-${w.id}`, prompt: w.hint, kind: 'scramble' as TaskKind, options: [], points: 0, meta: { word: w.word, scrambled: w.scrambled } }));
+        tasks = shuffle(wordScramblePool).slice(0, 8).map(w => ({ id: `scramble-${w.id}`, prompt: w.hint, kind: 'scramble' as TaskKind, options: [], points: 5, meta: { word: w.word, scrambled: w.scrambled } }));
         break;
       }
       case 'true-or-false': {
@@ -259,14 +258,17 @@ export default function GamesPage() {
     if (!currentTask || currentTask.kind !== 'scramble') return;
     const correct = currentTask.meta?.word as string;
     const isCorrect = scrambleInput.trim().toUpperCase() === correct;
-    if (isCorrect) { scrambleWordsCorrect.current += 1; setScrambleCorrect(true); setFeedback('Correct! MashaAllah 🎉'); }
+    if (isCorrect) {
+      setScrambleCorrect(true);
+      setFeedback('Correct! MashaAllah 🎉');
+      await awardPointsForGame(currentTask.points);
+    }
     else setFeedback(`Not quite! The answer was ${correct}`);
     setTimeout(async () => {
       setFeedback(null); setScrambleInput(''); setScrambleCorrect(false); setScrambleRevealed(false);
       if (taskIndex < (session?.tasks.length ?? 0) - 1) setTaskIndex(p => p + 1);
       else {
-        if (scrambleWordsCorrect.current >= Math.floor((session?.tasks.length ?? 0) / 2)) await awardPointsForGame(20);
-        scrambleWordsCorrect.current = 0; await finishGame();
+        await finishGame();
       }
     }, 900);
   };
@@ -451,12 +453,16 @@ export default function GamesPage() {
               <span className="text-sm font-semibold text-[#b45309]">Learn Through Play</span>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-[#6a422d]">Islamic Games</h1>
-            <p className="text-[#a1633a] text-lg max-w-2xl mx-auto">Play fun games while learning about Islam. Earn up to 20 points per game!</p>
+            <p className="text-[#a1633a] text-lg max-w-2xl mx-auto">Play fun games while learning about Islam. Earn points for every correct answer!</p>
           </div>
           <div className="bg-gradient-to-r from-[#ecfeff] to-[#f0fdfa] border border-[#14b8a6]/30 rounded-2xl p-5 text-center">
-            <p className="text-[#0f766e] font-bold text-base md:text-lg">New winner will be announced on 1 May 2026.</p>
-            <p className="text-[#115e59] mt-2 text-sm md:text-base">Please continue taking part every day to win prizes. You must take part at least 3 times in a week to enter the prize draw.</p>
-            <p className="text-[#0f766e] mt-2 text-sm md:text-base font-semibold">Check the Rewards page for important announcements and your weekly and monthly achievements.</p>
+            <p className="text-[#0f766e] font-bold text-base md:text-lg">New winner will be announced every Friday.</p>
+            <p className="text-[#115e59] mt-2 text-sm md:text-base">
+              Please continue taking part most days to win prizes. New games are added to help you gain more points.
+            </p>
+            <p className="text-[#0f766e] mt-2 text-sm md:text-base font-semibold">
+              Check the Rewards page for important announcements and your weekly and monthly achievements.
+            </p>
           </div>
           <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
             {[{ icon: Star, label: 'Your Points', value: profile?.points || 0, color: 'text-[#f59e0b]' }, { icon: Trophy, label: 'Badges', value: profile?.badges || 0, color: 'text-[#14b8a6]' }, { icon: Target, label: 'Games Played', value: profile?.gamesPlayed || 0, color: 'text-[#8b5cf6]' }].map((stat, idx) => (
@@ -494,7 +500,7 @@ export default function GamesPage() {
                 </div>
                 <h3 className="font-bold text-[#6a422d] text-lg mb-1">{game.title}</h3>
                 <p className="text-sm text-[#a1633a] mb-3">{game.description}</p>
-                <span className="inline-block text-xs font-semibold text-[#0d9488] bg-[#f0fdfa] px-3 py-1 rounded-full border border-[#14b8a6]/30">🌟 Up to 20 points</span>
+                <span className="inline-block text-xs font-semibold text-[#0d9488] bg-[#f0fdfa] px-3 py-1 rounded-full border border-[#14b8a6]/30">🌟 Earn points</span>
               </button>
             ))}
           </div>

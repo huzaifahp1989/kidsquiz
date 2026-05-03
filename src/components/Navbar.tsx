@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { LogOut, Menu, X, Home, Gamepad2, Trophy, BookOpen, Gift, Heart } from 'lucide-react';
+import { LogOut, Menu, X, Home, Gamepad2, Trophy, BookOpen, Gift, Heart, HelpCircle } from 'lucide-react';
 
 interface NavbarUser {
   name: string;
@@ -32,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
     { href: '/', label: 'Home', icon: Home },
     { href: '/quiz', label: 'Daily Quiz', icon: BookOpen },
     { href: '/games', label: 'Games', icon: Gamepad2 },
+    { href: '/stories', label: 'Stories', icon: BookOpen },
     { href: '/pledge', label: 'Pledge', icon: Heart },
     { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
     { href: '/rewards', label: 'Rewards', icon: Gift },

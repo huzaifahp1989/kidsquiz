@@ -572,6 +572,16 @@ export default function QuizPage() {
                     <p className="text-[#a1633a]">{dailyResult?.message || 'No points awarded for this attempt.'}</p>
                   )}
 
+                  <div className="bg-[#f0fdfa] rounded-xl p-4 border border-[#14b8a6]/20 text-left">
+                    <p className="font-bold text-[#0d9488] mb-1">New games added! 🎮</p>
+                    <p className="text-[#0f766e] text-sm mb-3">
+                      Want to gain more points? Check out the Games page and try the newest games.
+                    </p>
+                    <Link href="/games" className="inline-flex items-center gap-2 bg-[#14b8a6] text-white px-4 py-2 rounded-lg font-bold text-sm hover:opacity-95 transition-all">
+                      Play Games →
+                    </Link>
+                  </div>
+
                   {/* Pledge CTA */}
                   <div className="bg-[#fffbeb] rounded-xl p-4 border border-[#fbbf24]/30 text-left">
                     <p className="font-bold text-[#b45309] mb-1">Want to earn more points? 🌟</p>
@@ -617,7 +627,7 @@ export default function QuizPage() {
           Great effort! Please check your Rewards page for important announcements and your weekly and monthly achievements.
         </p>
         <p className="text-sm text-[#a1633a]">
-          Please also fill the winner contact form there so we can get to know your child better and contact you if your child wins.
+          New winner will be announced every Friday. Please also fill the winner contact form there so we can get to know your child better and contact you if your child wins.
         </p>
         <div className="flex gap-3 justify-center">
           <button

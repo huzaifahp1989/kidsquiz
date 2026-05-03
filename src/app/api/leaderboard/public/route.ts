@@ -52,7 +52,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('users_points')
-      .select('user_id,total_points,weekly_points,monthly_points,badges,level,users(name,email,points,weeklypoints,monthlypoints)')
+      .select('user_id,total_points,weekly_points,monthly_points,badges,level,last_earned_date,users(name,email,points,weeklypoints,monthlypoints)')
       .gt(orderField, 0)  // Only get users with points in this period
       .order(orderField, { ascending: false, nullsFirst: false })
       .limit(100);
@@ -128,6 +128,7 @@ export async function GET(req: Request) {
         weeklyPoints,
         monthlyPoints,
         badges: row.badges ?? 0,
+        lastPlayedDate: row.last_earned_date ?? null,
       };
     });
 

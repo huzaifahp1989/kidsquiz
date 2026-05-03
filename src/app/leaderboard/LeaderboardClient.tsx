@@ -14,6 +14,7 @@ type Entry = {
   weeklyPoints?: number;
   monthlyPoints?: number;
   badges?: number;
+  lastPlayedDate?: string | null;
 };
 
 export default function LeaderboardClient() {
@@ -81,8 +82,21 @@ export default function LeaderboardClient() {
       points: activeTab === 'weekly' ? (e.weeklyPoints ?? 0) : (e.monthlyPoints ?? 0),
       uid: e.uid,
       badges: e.badges ?? 0,
+      lastPlayedDate: e.lastPlayedDate ?? null,
     }));
   }, [entries, activeTab]);
+
+  const formatPlayedDate = (isoDate: string | null | undefined) => {
+    if (!isoDate) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
+    if (!m) return isoDate;
+    const y = m[1];
+    const mm = parseInt(m[2], 10);
+    const dd = parseInt(m[3], 10);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const mon = months[mm - 1] || m[2];
+    return `${dd} ${mon} ${y}`;
+  };
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown size={24} className="text-[#fbbf24]" />;
@@ -113,7 +127,7 @@ export default function LeaderboardClient() {
 
         <div className="bg-gradient-to-r from-[#ecfeff] to-[#f0fdfa] border border-[#14b8a6]/30 rounded-2xl p-5 text-center">
           <p className="text-[#0f766e] font-bold text-base md:text-lg">
-            New winner will be announced on 1 May 2026.
+            New winner will be announced every Friday.
           </p>
           <p className="text-[#115e59] mt-2 text-sm md:text-base">
             Please continue taking part every day to win prizes.
@@ -203,6 +217,7 @@ export default function LeaderboardClient() {
                 <div className="flex justify-center mb-3">{getRankIcon(entry.rank)}</div>
                 <p className="text-lg font-bold truncate">{entry.username}</p>
                 <p className="text-xs opacity-90 truncate">{entry.madrasahName || ''}</p>
+                {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs opacity-90 mt-1">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}
                 <p className="text-2xl font-bold">⭐ {entry.points}</p>
                 <p className="text-sm opacity-80">🏆 {entry.badges} badges</p>
               </div>
@@ -234,6 +249,7 @@ export default function LeaderboardClient() {
                     <p className="font-bold text-[#6a422d]">{entry.username}</p>
                     <p className="text-xs text-[#a1633a]">Madrasah: {entry.madrasahName || ''}</p>
                     <p className="text-sm text-[#a1633a]">Level {entry.level}</p>
+                    {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs text-[#a1633a]">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-[#f59e0b]">⭐ {entry.points}</p>

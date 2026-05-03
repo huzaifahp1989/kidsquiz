@@ -3,7 +3,6 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
-import { Navbar } from './Navbar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { AnnouncementBar } from '@/components/AnnouncementBar';
 import { PromoSlideshow } from '@/components/PromoSlideshow';
@@ -14,6 +13,7 @@ import { isTestModeEmail } from '@/lib/test-mode';
 
 const WinnerPopup = dynamic(() => import('@/components/WinnerPopup').then(m => m.WinnerPopup), { ssr: false });
 const FeedbackBanner = dynamic(() => import('@/components/FeedbackBanner').then(m => m.FeedbackBanner), { ssr: false });
+const Navbar = dynamic(() => import('./Navbar').then(m => m.Navbar), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout } = useAuth();

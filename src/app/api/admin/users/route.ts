@@ -113,6 +113,7 @@ export async function GET(request: Request) {
 
     const userIds = list.map((u: any) => u?.uid).filter(Boolean);
     const quizAttemptsByUser = new Map<string, number>();
+    const winnerTickByUser = new Set<string>();
 
     if (userIds.length > 0) {
       const { data: attemptRows, error: attemptsError } = await supabaseAdmin
@@ -127,6 +128,25 @@ export async function GET(request: Request) {
           const uid = String((row as any).user_id || '');
           if (!uid) continue;
           quizAttemptsByUser.set(uid, (quizAttemptsByUser.get(uid) || 0) + 1);
+        }
+      }
+    }
+
+    if (userIds.length > 0) {
+      const { data: winnerRows, error: winnerErr } = await supabaseAdmin
+        .from('featured_winners')
+        .select('user_id')
+        .in('user_id', userIds);
+
+      if (winnerErr) {
+        if (winnerErr.code !== '42P01') {
+          console.warn('[admin/users] Failed fetching featured winners:', winnerErr.message);
+        }
+      } else {
+        for (const row of winnerRows || []) {
+          const uid = String((row as any).user_id || '');
+          if (!uid) continue;
+          winnerTickByUser.add(uid);
         }
       }
     }
@@ -193,6 +213,7 @@ export async function GET(request: Request) {
       return {
         ...user,
         quizAttempts: quizAttemptsByUser.get(user.uid) || 0,
+        winnerTick: winnerTickByUser.has(String(user.uid)),
         madrasahNameNormalized: normalizedMadrasah,
         contactNumberNormalized: normalizedContact,
         parentEmailNormalized: normalizedParentEmail,
@@ -315,7 +336,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json();
-    const { uid, name, points, weeklypoints, monthlypoints, password } = body;
+    const { uid, name, points, weeklypoints, monthlypoints, password, winnerTick } = body;
 
     if (!uid) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -391,6 +412,39 @@ export async function PUT(request: Request) {
       Number(updatedUser?.weeklypoints || 0),
       Number(updatedUser?.monthlypoints || 0)
     );
+
+    if (typeof winnerTick === 'boolean') {
+      if (winnerTick) {
+        const { error: winnerUpsertErr } = await supabaseAdmin
+          .from('featured_winners')
+          .upsert({ user_id: uid }, { onConflict: 'user_id' });
+
+        if (winnerUpsertErr) {
+          if (winnerUpsertErr.code === '42P01') {
+            return NextResponse.json(
+              { error: 'Missing featured_winners table. Run the Supabase migration 20260508_create_featured_winners.sql.' },
+              { status: 503 }
+            );
+          }
+          throw winnerUpsertErr;
+        }
+      } else {
+        const { error: winnerDeleteErr } = await supabaseAdmin
+          .from('featured_winners')
+          .delete()
+          .eq('user_id', uid);
+
+        if (winnerDeleteErr) {
+          if (winnerDeleteErr.code === '42P01') {
+            return NextResponse.json(
+              { error: 'Missing featured_winners table. Run the Supabase migration 20260508_create_featured_winners.sql.' },
+              { status: 503 }
+            );
+          }
+          throw winnerDeleteErr;
+        }
+      }
+    }
 
     // Update password if provided
     if (password && typeof password === 'string' && password.length >= 6) {

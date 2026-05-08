@@ -70,6 +70,7 @@ interface User {
   madrasahNameNormalized?: string;
   winnerAboutNormalized?: string;
   winnerFormSubmittedAtNormalized?: string;
+  winnerTick?: boolean;
   points: number;
   weeklypoints: number;
   monthlypoints: number;
@@ -92,7 +93,7 @@ export default function AdminPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showEditPassword, setShowEditPassword] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', password: '', points: 0, weeklypoints: 0, monthlypoints: 0 });
+  const [editForm, setEditForm] = useState({ name: '', password: '', points: 0, weeklypoints: 0, monthlypoints: 0, winnerTick: false });
 
   // Pending Claims State
   type PendingClaim = {
@@ -280,7 +281,8 @@ export default function AdminPanel() {
           password: editForm.password?.length >= 6 ? editForm.password : undefined,
           points: editForm.points,
           weeklypoints: editForm.weeklypoints,
-          monthlypoints: editForm.monthlypoints
+          monthlypoints: editForm.monthlypoints,
+          winnerTick: editForm.winnerTick
         })
       });
 
@@ -843,7 +845,8 @@ export default function AdminPanel() {
                                   password: '',
                                   points: user.points || 0,
                                   weeklypoints: user.weeklypoints || 0,
-                                  monthlypoints: user.monthlypoints || 0
+                                  monthlypoints: user.monthlypoints || 0,
+                                  winnerTick: user.winnerTick ?? false
                                 });
                               }}
                               className="text-indigo-600 hover:text-indigo-900 mr-4 p-2 hover:bg-indigo-50 rounded-full transition-colors"
@@ -1265,6 +1268,18 @@ export default function AdminPanel() {
                 onChange={(e) => setEditForm({...editForm, monthlypoints: parseInt(e.target.value) || 0})}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <input
+                id="winner-tick"
+                type="checkbox"
+                checked={editForm.winnerTick}
+                onChange={(e) => setEditForm({ ...editForm, winnerTick: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <label htmlFor="winner-tick" className="text-sm text-slate-700">
+                Show winner tick on leaderboard
+              </label>
             </div>
             <div className="flex gap-3 pt-4">
               <Button onClick={handleUpdateUser} variant="primary" className="flex-1">

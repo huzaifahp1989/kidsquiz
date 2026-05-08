@@ -15,6 +15,7 @@ type Entry = {
   monthlyPoints?: number;
   badges?: number;
   lastPlayedDate?: string | null;
+  winnerTick?: boolean;
 };
 
 export default function LeaderboardClient() {
@@ -83,6 +84,7 @@ export default function LeaderboardClient() {
       uid: e.uid,
       badges: e.badges ?? 0,
       lastPlayedDate: e.lastPlayedDate ?? null,
+      winnerTick: e.winnerTick ?? false,
     }));
   }, [entries, activeTab]);
 
@@ -215,7 +217,10 @@ export default function LeaderboardClient() {
                 className={`${getRankStyle(entry.rank)} rounded-2xl p-6 text-center shadow-lg ${entry.rank === 1 ? 'scale-105' : ''}`}
               >
                 <div className="flex justify-center mb-3">{getRankIcon(entry.rank)}</div>
-                <p className="text-lg font-bold truncate">{entry.username}</p>
+                <p className="text-lg font-bold truncate inline-flex items-center justify-center gap-2">
+                  <span className="truncate">{entry.username}</span>
+                  {entry.winnerTick && <span aria-label="Winner" className="text-white/90">✓</span>}
+                </p>
                 <p className="text-xs opacity-90 truncate">{entry.madrasahName || ''}</p>
                 {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs opacity-90 mt-1">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}
                 <p className="text-2xl font-bold">⭐ {entry.points}</p>
@@ -246,7 +251,10 @@ export default function LeaderboardClient() {
                     🌍
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-[#6a422d]">{entry.username}</p>
+                    <p className="font-bold text-[#6a422d] inline-flex items-center gap-2">
+                      <span>{entry.username}</span>
+                      {entry.winnerTick && <span aria-label="Winner" className="text-emerald-600">✓</span>}
+                    </p>
                     <p className="text-xs text-[#a1633a]">Madrasah: {entry.madrasahName || ''}</p>
                     <p className="text-sm text-[#a1633a]">Level {entry.level}</p>
                     {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs text-[#a1633a]">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}

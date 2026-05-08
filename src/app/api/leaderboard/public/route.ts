@@ -133,7 +133,27 @@ export async function GET(req: Request) {
     });
 
     const userIds = entriesBase.map((entry: any) => entry.uid).filter(Boolean);
+    const winnerTickByUser = new Set<string>();
     const weeklyAttemptCountByUser = new Map<string, number>();
+
+    if (userIds.length > 0) {
+      const { data: winnerRows, error: winnerErr } = await supabaseAdmin
+        .from('featured_winners')
+        .select('user_id')
+        .in('user_id', userIds);
+
+      if (winnerErr) {
+        if (winnerErr.code !== '42P01') {
+          console.warn('Leaderboard featured winners lookup error:', winnerErr.message);
+        }
+      } else {
+        for (const row of winnerRows || []) {
+          const uid = String((row as any).user_id || '');
+          if (!uid) continue;
+          winnerTickByUser.add(uid);
+        }
+      }
+    }
 
     if (userIds.length > 0) {
       const { weekStartIso, weekEndIso } = getCurrentWeekRangeUtc();
@@ -157,6 +177,7 @@ export async function GET(req: Request) {
 
     const entries = entriesBase.map((entry: any) => ({
       ...entry,
+      winnerTick: winnerTickByUser.has(String(entry.uid)),
       weeklyQuizAttempts: weeklyAttemptCountByUser.get(entry.uid) || 0,
     }));
 

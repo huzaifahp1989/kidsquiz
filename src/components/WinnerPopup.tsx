@@ -8,6 +8,7 @@ export function WinnerPopup() {
   const router = useRouter();
   const pathname = usePathname();
   const [showPopup, setShowPopup] = useState(true);
+  const winnersDate = '8 May 2026';
 
   const handleClose = () => {
     setShowPopup(false);
@@ -25,6 +26,23 @@ export function WinnerPopup() {
       size="lg"
     >
       <div className="space-y-6 text-slate-700 text-sm sm:text-base">
+        <div className="p-5 sm:p-6 bg-violet-50 rounded-2xl border border-violet-200">
+          <div className="text-center">
+            <p className="font-black text-lg sm:text-xl text-violet-900">Weekly Winners</p>
+            <p className="mt-1 font-bold text-slate-700">{winnersDate}</p>
+          </div>
+
+          <ol className="mt-4 space-y-2 font-semibold text-slate-800 list-decimal list-inside">
+            <li>Amina Farzan - Madrasah Masjid Al Ansaar</li>
+            <li>Salmaan Musa - Darul Ihsaan</li>
+            <li>Ahmed Raza Ali</li>
+            <li>Muhammad Umar Esat - Darul Ihsaan</li>
+          </ol>
+
+          <p className="mt-4 font-semibold text-slate-700">
+            Please keep taking part more on weekly quizzes, games and pledging durood to be chosen for weekly winner.
+          </p>
+        </div>
 
         <div className="p-5 sm:p-6 bg-amber-50 rounded-2xl border border-amber-200 text-center">
           <p className="font-semibold text-slate-700">

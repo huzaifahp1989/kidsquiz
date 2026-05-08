@@ -8,6 +8,7 @@ interface LeaderboardEntry {
   userId: string;
   name: string;
   count: number;
+  winnerTick?: boolean;
 }
 
 export default function PledgeLeaderboardPage() {
@@ -122,7 +123,10 @@ export default function PledgeLeaderboardPage() {
                       {index + 1}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800 text-lg">{leader.name}</p>
+                      <p className="font-bold text-slate-800 text-lg inline-flex items-center gap-2">
+                        <span>{leader.name}</span>
+                        {leader.winnerTick && <span aria-label="Winner" className="text-emerald-600">✓</span>}
+                      </p>
                       <p className="text-xs text-slate-500">MashaAllah!</p>
                     </div>
                   </div>

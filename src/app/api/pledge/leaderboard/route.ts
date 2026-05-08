@@ -30,6 +30,24 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, leaders: [] });
     }
 
+    const winnerTickByUser = new Set<string>();
+    const { data: winnerRows, error: winnerErr } = await supabaseAdmin
+      .from('featured_winners')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (winnerErr) {
+      if (winnerErr.code !== '42P01') {
+        console.warn('[pledge/leaderboard] featured winners fetch error:', winnerErr.message);
+      }
+    } else {
+      for (const row of winnerRows || []) {
+        const uid = String((row as any).user_id || '');
+        if (!uid) continue;
+        winnerTickByUser.add(uid);
+      }
+    }
+
     const { data: users, error: userError } = await supabaseAdmin
       .from('users')
       .select('uid, name, email')
@@ -60,6 +78,7 @@ export async function GET(req: Request) {
         userId: uid,
         name: userMap.get(uid) || 'Friend',
         count: countsByUser[uid],
+        winnerTick: winnerTickByUser.has(uid),
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 100);

@@ -208,18 +208,18 @@ export default function LeaderboardClient() {
 
         {/* Top 3 Podium */}
         {!loading && leaderboardData.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             {leaderboardData.slice(0, 3).map(entry => (
               <div
                 key={entry.rank}
-                className={`${getRankStyle(entry.rank)} rounded-2xl p-6 text-center shadow-lg ${entry.rank === 1 ? 'scale-105' : ''}`}
+                className={`${getRankStyle(entry.rank)} rounded-2xl p-3 sm:p-6 text-center shadow-lg ${entry.rank === 1 ? 'scale-105' : ''}`}
               >
                 <div className="flex justify-center mb-3">{getRankIcon(entry.rank)}</div>
-                <p className="text-lg font-bold truncate">{entry.username}</p>
+                <p className="text-xs sm:text-sm md:text-base font-bold truncate leading-tight">{entry.username}</p>
                 <p className="text-xs opacity-90 truncate">{entry.madrasahName || ''}</p>
                 {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs opacity-90 mt-1">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}
-                <p className="text-2xl font-bold">⭐ {entry.points}</p>
-                <p className="text-sm opacity-80">🏆 {entry.badges} badges</p>
+                <p className="text-lg sm:text-2xl font-bold">⭐ {entry.points}</p>
+                <p className="text-xs sm:text-sm opacity-80">🏆 {entry.badges} badges</p>
               </div>
             ))}
           </div>

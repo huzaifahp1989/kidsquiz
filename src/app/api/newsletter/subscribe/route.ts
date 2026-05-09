@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 function isValidEmail(email: string): boolean {
   const t = email.trim();
@@ -15,43 +16,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
     }
 
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    if (!RESEND_API_KEY) {
-      console.error('RESEND_API_KEY not configured');
-      return NextResponse.json({ error: 'Email service not configured' }, { status: 500 });
+    const apiKey = process.env.MAILCHIMP_API_KEY || '';
+    if (!apiKey) {
+      return NextResponse.json({ error: 'MAILCHIMP_API_KEY not configured' }, { status: 500 });
     }
 
-    const toEmail = 'imediac786@gmail.com';
-    const subject = 'New Newsletter Signup';
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #0ea5e9;">New Newsletter Signup</h2>
-        <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">
-          This email was submitted from the newsletter popup on the Islamic Kids Learning Platform.
-        </p>
-      </div>
-    `;
+    const dc = apiKey.includes('-') ? apiKey.split('-').pop() : null;
+    if (!dc) {
+      return NextResponse.json({ error: 'MAILCHIMP_API_KEY must include a datacenter suffix like -us12' }, { status: 500 });
+    }
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
+    const listId = '8ba87552de';
+    const subscriberHash = crypto.createHash('md5').update(email).digest('hex');
+    const url = `https://${dc}.api.mailchimp.com/3.0/lists/${listId}/members/${subscriberHash}`;
+
+    const auth = Buffer.from(`anystring:${apiKey}`).toString('base64');
+    const response = await fetch(url, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Basic ${auth}`,
       },
       body: JSON.stringify({
-        from: 'Islamic Kids Platform <onboarding@resend.dev>',
-        to: [toEmail],
-        subject,
-        html,
+        email_address: email,
+        status_if_new: 'subscribed',
+        status: 'subscribed',
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Resend API error (newsletter):', errorText);
-      return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });
+      const errJson = await response.json().catch(() => null);
+      const detail = typeof errJson?.detail === 'string' ? errJson.detail : null;
+      const title = typeof errJson?.title === 'string' ? errJson.title : null;
+      return NextResponse.json(
+        { error: detail || title || 'Failed to subscribe to Mailchimp' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });
@@ -60,4 +60,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

@@ -5,9 +5,6 @@ import { usePathname } from 'next/navigation';
 import { Modal, Button } from '@/components';
 
 const STORAGE_KEY = 'newsletter_popup_last_seen';
-const MAILCHIMP_ACTION =
-  'https://mc.us12.list-manage.com/subscribe/post?u=92de7b1f7e938c2bd3b35aab4&id=8ba87552de&f_id=003417e9f0';
-const MAILCHIMP_HONEYPOT = 'b_92de7b1f7e938c2bd3b35aab4_76397';
 
 function isValidEmail(email: string): boolean {
   const t = email.trim();
@@ -20,6 +17,7 @@ export function NewsletterPopup() {
 
   const [isOpen, setIsOpen] = React.useState(false);
   const [email, setEmail] = React.useState('');
+  const [status, setStatus] = React.useState<'idle' | 'loading' | 'success'>('idle');
   const [error, setError] = React.useState<string | null>(null);
 
   const isExcludedRoute = React.useMemo(() => {
@@ -47,7 +45,7 @@ export function NewsletterPopup() {
     setIsOpen(false);
   }, []);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     setError(null);
 
     if (!isValidEmail(email)) {
@@ -55,7 +53,31 @@ export function NewsletterPopup() {
       e.preventDefault();
       return;
     }
-    close();
+    e.preventDefault();
+
+    try {
+      setStatus('loading');
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to subscribe. Please try again.');
+      }
+
+      setStatus('success');
+      if (typeof window !== 'undefined') {
+        const today = new Date().toISOString().slice(0, 10);
+        window.localStorage.setItem(STORAGE_KEY, today);
+      }
+      window.setTimeout(() => setIsOpen(false), 900);
+    } catch (err) {
+      setStatus('idle');
+      setError(err instanceof Error ? err.message : 'Failed to subscribe. Please try again.');
+    }
   };
 
   if (isExcludedRoute) return null;
@@ -74,18 +96,21 @@ export function NewsletterPopup() {
           </p>
         </div>
 
-        <form
-          action={MAILCHIMP_ACTION}
-          method="post"
-          target="_blank"
-          onSubmit={onSubmit}
-          className="space-y-3"
-        >
+        {status === 'success' ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+            <p className="font-bold text-emerald-800">Subscribed successfully!</p>
+            <div className="mt-3">
+              <Button variant="outline" className="w-full" onClick={close}>
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} className="space-y-3">
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>
             <input
               type="email"
-              name="EMAIL"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-islamic-blue"
@@ -95,10 +120,6 @@ export function NewsletterPopup() {
             />
           </div>
 
-          <div aria-hidden="true" className="hidden">
-            <input type="text" name={MAILCHIMP_HONEYPOT} tabIndex={-1} defaultValue="" />
-          </div>
-
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -106,14 +127,15 @@ export function NewsletterPopup() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button type="submit" variant="primary" className="w-full">
-              Subscribe
+            <Button type="submit" variant="primary" className="w-full" disabled={status === 'loading'}>
+              {status === 'loading' ? 'Subscribing...' : 'Subscribe'}
             </Button>
             <Button type="button" variant="outline" className="w-full" onClick={close}>
               No thanks
             </Button>
           </div>
-        </form>
+          </form>
+        )}
       </div>
     </Modal>
   );

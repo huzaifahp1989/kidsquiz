@@ -47,14 +47,12 @@ export async function POST(req: Request) {
 
     if (readErr) {
       if (readErr.code === '42P01') {
-        return NextResponse.json(
-          {
-            error:
-              'weekly_competition_progress table missing. Run the Supabase migration 20260510_create_weekly_competition_progress.sql.',
-            setupRequired: true,
-          },
-          { status: 503 }
-        );
+        return NextResponse.json({
+          success: false,
+          setupRequired: true,
+          message:
+            'Competition tracking is not set up yet. Admin must run the Supabase migration 20260510_create_weekly_competition_progress.sql.',
+        });
       }
       throw readErr;
     }
@@ -102,4 +100,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error?.message || 'Unexpected error' }, { status: 500 });
   }
 }
-

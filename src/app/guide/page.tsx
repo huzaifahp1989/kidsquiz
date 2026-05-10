@@ -16,6 +16,10 @@ export default function GuidePage() {
             The best way to win is to show up most days, complete your daily activities, and keep learning. Some weeks you can
             win even if your points are not the highest.
           </p>
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            To enter our weekly winner draw you must take part in at least 3 activities in the app each week: Daily Quiz, Pledge
+            Durood, and play any game.
+          </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href="/signin"

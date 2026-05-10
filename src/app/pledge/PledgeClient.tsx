@@ -70,17 +70,19 @@ export default function PledgeClient() {
         count: count,
       });
 
-      try {
-        const progressRes = await fetch('/api/competition/track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, activity: 'pledge' }),
-        });
-        const progressData = await progressRes.json().catch(() => null);
-        if (progressRes.ok && progressData?.message) {
-          setCompetitionPrompt(String(progressData.message));
-        }
-      } catch {}
+      if (type === 'durood') {
+        try {
+          const progressRes = await fetch('/api/competition/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id, activity: 'pledge' }),
+          });
+          const progressData = await progressRes.json().catch(() => null);
+          if (progressData?.message) {
+            setCompetitionPrompt(String(progressData.message));
+          }
+        } catch {}
+      }
 
       const itemName = type === 'durood' 
         ? DUROOD_OPTIONS.find(o => o.value === selectedDurood)?.label 

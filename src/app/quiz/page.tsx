@@ -37,6 +37,7 @@ export default function QuizPage() {
   const [todayDate, setTodayDate] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<QuizTopicId | null>(null);
   const [showRewardsPrompt, setShowRewardsPrompt] = useState(false);
+  const [pendingRewardsPrompt, setPendingRewardsPrompt] = useState(false);
   const [competitionPrompt, setCompetitionPrompt] = useState<string | null>(null);
 
   const [quizLockedUntil, setQuizLockedUntil] = useState<number | null>(null);
@@ -225,7 +226,8 @@ export default function QuizPage() {
         const maxDailyAttempts = Number(data.maxDailyAttempts || 2);
         const hasUsedAllDailyAttempts = attemptsToday >= maxDailyAttempts;
         setDailyStatus(hasUsedAllDailyAttempts ? 'completed' : 'ready');
-        setShowRewardsPrompt(true);
+        setShowRewardsPrompt(false);
+        setPendingRewardsPrompt(true);
         if (hasUsedAllDailyAttempts) {
           setQuizLockedUntil(Number(data.lockedUntil || Date.now() + 24 * 60 * 60 * 1000));
         } else {
@@ -247,10 +249,16 @@ export default function QuizPage() {
             body: JSON.stringify({ userId: user.id, activity: 'quiz' }),
           });
           const progressData = await progressRes.json().catch(() => null);
-          if (progressRes.ok && progressData?.message) {
+          if (progressData?.message) {
             setCompetitionPrompt(String(progressData.message));
+          } else {
+            setShowRewardsPrompt(true);
+            setPendingRewardsPrompt(false);
           }
-        } catch {}
+        } catch {
+          setShowRewardsPrompt(true);
+          setPendingRewardsPrompt(false);
+        }
       } else {
         setResultToast(data.error || 'Submission failed');
       }
@@ -663,12 +671,28 @@ export default function QuizPage() {
     </Modal>
     <Modal
       isOpen={Boolean(competitionPrompt)}
-      onClose={() => setCompetitionPrompt(null)}
+      onClose={() => {
+        setCompetitionPrompt(null);
+        if (pendingRewardsPrompt) {
+          setShowRewardsPrompt(true);
+          setPendingRewardsPrompt(false);
+        }
+      }}
       title="Competition Draw"
     >
       <div className="space-y-4 text-center">
         <p className="text-[#6a422d] font-semibold">{competitionPrompt}</p>
-        <Button variant="primary" className="w-full" onClick={() => setCompetitionPrompt(null)}>
+        <Button
+          variant="primary"
+          className="w-full"
+          onClick={() => {
+            setCompetitionPrompt(null);
+            if (pendingRewardsPrompt) {
+              setShowRewardsPrompt(true);
+              setPendingRewardsPrompt(false);
+            }
+          }}
+        >
           OK
         </Button>
       </div>

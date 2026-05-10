@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase';
 import { Story, Recording } from '@/types/stories';
 import { storyQuizzesByTitle, StoryQuizOptionKey } from '@/data/story-quizzes';
 import { useAuth } from '@/lib/auth-context';
-import { addPoints } from '@/lib/profile-service';
 import { ArrowLeft, Play, Pause, Square, Mic, BookOpen, Star, ExternalLink, CheckCircle, Headphones } from 'lucide-react';
 
 const RECORD_APP_URL = 'https://create-me-a-audio.vercel.app/kids-record';
@@ -111,22 +110,24 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
     if (!user || !story) return;
     setSubmittingRecording(true);
     try {
-      // Award 30 points for recording
-      await addPoints(user.id, POINTS_PER_RECORDING);
-
-      // Log the recording in the database
-      await supabase.from('recordings').insert({
-        user_id: user.id,
-        story_id: story.id,
-        audio_path: `external/${user.id}/${Date.now()}`,
-        duration: 0,
-        status: 'approved',
+      const res = await fetch('/api/stories/record-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          storyId: story.id,
+        }),
       });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Could not save story recording');
+      }
 
       setRecordingSubmitted(true);
     } catch (err) {
       console.error('Error awarding points:', err);
-      setRecordingSubmitted(true); // Still show success to not frustrate kids
     } finally {
       setSubmittingRecording(false);
     }

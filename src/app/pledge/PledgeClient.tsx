@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { addPointsWithOptions } from '@/lib/profile-service';
 import { supabase } from '@/lib/supabase';
 import { Heart, Sparkles, Trophy } from 'lucide-react';
+import { Modal } from '@/components';
 
 const DUROOD_OPTIONS = [
   { label: 'Salallahu Alayhi Wasallam', value: 'short_durood' },
@@ -28,6 +29,7 @@ export default function PledgeClient() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'durood' | 'zikr'>('durood');
+  const [competitionPrompt, setCompetitionPrompt] = useState<string | null>(null);
 
   const [selectedDurood, setSelectedDurood] = useState(DUROOD_OPTIONS[0].value);
   const [duroodCount, setDuroodCount] = useState<number | ''>('');
@@ -68,6 +70,18 @@ export default function PledgeClient() {
         count: count,
       });
 
+      try {
+        const progressRes = await fetch('/api/competition/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, activity: 'pledge' }),
+        });
+        const progressData = await progressRes.json().catch(() => null);
+        if (progressRes.ok && progressData?.message) {
+          setCompetitionPrompt(String(progressData.message));
+        }
+      } catch {}
+
       const itemName = type === 'durood' 
         ? DUROOD_OPTIONS.find(o => o.value === selectedDurood)?.label 
         : ZIKR_OPTIONS.find(o => o.value === selectedZikr)?.label;
@@ -84,6 +98,7 @@ export default function PledgeClient() {
   };
 
   return (
+    <>
     <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
         {/* Header */}
@@ -312,5 +327,17 @@ export default function PledgeClient() {
         )}
       </div>
     </div>
+    <Modal isOpen={Boolean(competitionPrompt)} onClose={() => setCompetitionPrompt(null)} title="Competition Draw">
+      <div className="space-y-4 text-center">
+        <p className="text-[#6a422d] font-semibold">{competitionPrompt}</p>
+        <button
+          onClick={() => setCompetitionPrompt(null)}
+          className="w-full py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-bold rounded-xl shadow-lg"
+        >
+          OK
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }

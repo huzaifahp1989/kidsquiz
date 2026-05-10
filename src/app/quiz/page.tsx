@@ -37,6 +37,7 @@ export default function QuizPage() {
   const [todayDate, setTodayDate] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<QuizTopicId | null>(null);
   const [showRewardsPrompt, setShowRewardsPrompt] = useState(false);
+  const [competitionPrompt, setCompetitionPrompt] = useState<string | null>(null);
 
   const [quizLockedUntil, setQuizLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<string>('');
@@ -238,6 +239,18 @@ export default function QuizPage() {
         } else if (data.message) {
           setResultToast(String(data.message));
         }
+
+        try {
+          const progressRes = await fetch('/api/competition/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id, activity: 'quiz' }),
+          });
+          const progressData = await progressRes.json().catch(() => null);
+          if (progressRes.ok && progressData?.message) {
+            setCompetitionPrompt(String(progressData.message));
+          }
+        } catch {}
       } else {
         setResultToast(data.error || 'Submission failed');
       }
@@ -646,6 +659,18 @@ export default function QuizPage() {
             Open Rewards + Form
           </button>
         </div>
+      </div>
+    </Modal>
+    <Modal
+      isOpen={Boolean(competitionPrompt)}
+      onClose={() => setCompetitionPrompt(null)}
+      title="Competition Draw"
+    >
+      <div className="space-y-4 text-center">
+        <p className="text-[#6a422d] font-semibold">{competitionPrompt}</p>
+        <Button variant="primary" className="w-full" onClick={() => setCompetitionPrompt(null)}>
+          OK
+        </Button>
       </div>
     </Modal>
     </>

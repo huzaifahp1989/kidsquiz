@@ -16,6 +16,7 @@ type Entry = {
   badges?: number;
   lastPlayedDate?: string | null;
   winnerTick?: boolean;
+  competitionEntered?: boolean;
 };
 
 export default function LeaderboardClient() {
@@ -85,6 +86,7 @@ export default function LeaderboardClient() {
       badges: e.badges ?? 0,
       lastPlayedDate: e.lastPlayedDate ?? null,
       winnerTick: e.winnerTick ?? false,
+      competitionEntered: Boolean(e.competitionEntered),
     }));
   }, [entries, activeTab]);
 
@@ -214,13 +216,16 @@ export default function LeaderboardClient() {
             {leaderboardData.slice(0, 3).map(entry => (
               <div
                 key={entry.rank}
-                className={`${getRankStyle(entry.rank)} rounded-2xl p-3 sm:p-6 text-center shadow-lg ${entry.rank === 1 ? 'scale-105' : ''}`}
+                className={`${getRankStyle(entry.rank)} rounded-2xl p-3 sm:p-6 text-center shadow-lg ${entry.rank === 1 ? 'scale-105' : ''} ${entry.competitionEntered ? 'ring-4 ring-emerald-300 ring-offset-2 ring-offset-white' : ''}`}
               >
                 <div className="flex justify-center mb-3">{getRankIcon(entry.rank)}</div>
                 <p className="text-xs sm:text-sm md:text-base font-bold truncate inline-flex items-center justify-center gap-2 leading-tight">
                   <span className="truncate">{entry.username}</span>
                   {entry.winnerTick && <span aria-label="Winner" className="text-white/90">✓</span>}
                 </p>
+                {entry.competitionEntered ? (
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-white/90">Entered Draw</p>
+                ) : null}
                 <p className="text-xs opacity-90 truncate">{entry.madrasahName || ''}</p>
                 {formatPlayedDate(entry.lastPlayedDate) && <p className="text-xs opacity-90 mt-1">Played: {formatPlayedDate(entry.lastPlayedDate)}</p>}
                 <p className="text-lg sm:text-2xl font-bold">⭐ {entry.points}</p>
@@ -242,7 +247,9 @@ export default function LeaderboardClient() {
               {leaderboardData.map((entry) => (
                 <div
                   key={entry.rank}
-                  className={`flex items-center gap-4 p-4 hover:bg-[#f9f0e6]/50 transition ${
+                  className={`flex items-center gap-4 p-4 transition ${
+                    entry.competitionEntered ? 'bg-emerald-50/70' : 'hover:bg-[#f9f0e6]/50'
+                  } ${
                     entry.uid === profile?.uid ? 'bg-[#f0fdfa]/50' : ''
                   }`}
                 >
@@ -254,6 +261,7 @@ export default function LeaderboardClient() {
                     <p className="font-bold text-[#6a422d] inline-flex items-center gap-2">
                       <span>{entry.username}</span>
                       {entry.winnerTick && <span aria-label="Winner" className="text-emerald-600">✓</span>}
+                      {entry.competitionEntered && <span className="text-xs font-bold text-emerald-700">• Entered Draw</span>}
                     </p>
                     <p className="text-xs text-[#a1633a]">Madrasah: {entry.madrasahName || ''}</p>
                     <p className="text-sm text-[#a1633a]">Level {entry.level}</p>

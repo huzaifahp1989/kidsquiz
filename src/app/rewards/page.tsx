@@ -28,6 +28,12 @@ export default function RewardsPage() {
   const [certLoading, setCertLoading] = useState(false);
   const [weeklyQuizAttempts, setWeeklyQuizAttempts] = useState(0);
   const [weeklyQuizLoading, setWeeklyQuizLoading] = useState(false);
+  const [competitionStatus, setCompetitionStatus] = useState<{
+    completedCount: number;
+    remainingCount: number;
+    entered: boolean;
+    setupRequired?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -86,6 +92,35 @@ export default function RewardsPage() {
     };
 
     loadWeeklyQuizAttempts();
+  }, [user?.id]);
+
+  useEffect(() => {
+    const loadCompetition = async () => {
+      if (!user?.id) {
+        setCompetitionStatus(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/competition/status?userId=${user.id}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (res.status === 503) {
+          setCompetitionStatus({ completedCount: 0, remainingCount: 3, entered: false, setupRequired: true });
+          return;
+        }
+        if (!res.ok) {
+          setCompetitionStatus(null);
+          return;
+        }
+        setCompetitionStatus({
+          completedCount: Number(data?.completedCount ?? 0),
+          remainingCount: Number(data?.remainingCount ?? 3),
+          entered: Boolean(data?.entered),
+        });
+      } catch {
+        setCompetitionStatus(null);
+      }
+    };
+    loadCompetition();
   }, [user?.id]);
 
   if (!mounted || loading) {
@@ -182,8 +217,35 @@ export default function RewardsPage() {
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {competitionStatus ? (
+          <div
+            className={`mb-6 rounded-2xl border px-5 py-4 shadow-sm ${
+              competitionStatus.entered
+                ? 'border-emerald-300 bg-emerald-50'
+                : 'border-[#14b8a6]/40 bg-[#f0fdfa]'
+            }`}
+          >
+            <p className={`font-extrabold text-base md:text-lg ${competitionStatus.entered ? 'text-emerald-800' : 'text-[#0f766e]'}`}>
+              {competitionStatus.entered
+                ? '✅ You entered this week’s competition draw!'
+                : `🎯 Competition draw progress: ${competitionStatus.completedCount}/3`}
+            </p>
+            {competitionStatus.setupRequired ? (
+              <p className="mt-1 text-sm text-[#0d9488]">
+                Admin setup required: run the Supabase migration 20260510_create_weekly_competition_progress.sql.
+              </p>
+            ) : competitionStatus.entered ? (
+              <p className="mt-1 text-sm text-emerald-700">
+                Great job! Keep taking part to stay active on the leaderboard.
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-[#0d9488]">
+                {competitionStatus.remainingCount} left this week: do the Daily Quiz, pledge Durood, and play any game.
+              </p>
+            )}
+          </div>
+        ) : null}
 
-        {/* Recording Feature */}
         <section className="mb-6 rounded-3xl border border-purple-200 bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-6 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-600 text-3xl text-white shadow-sm">

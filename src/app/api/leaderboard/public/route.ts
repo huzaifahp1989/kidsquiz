@@ -135,6 +135,7 @@ export async function GET(req: Request) {
     const userIds = entriesBase.map((entry: any) => entry.uid).filter(Boolean);
     const winnerTickByUser = new Set<string>();
     const weeklyAttemptCountByUser = new Map<string, number>();
+    const competitionEnteredByUser = new Set<string>();
 
     if (userIds.length > 0) {
       const { data: winnerRows, error: winnerErr } = await supabaseAdmin
@@ -175,10 +176,35 @@ export async function GET(req: Request) {
       }
     }
 
+    if (userIds.length > 0) {
+      const weekStartDate = getCurrentWeekRangeUtc().weekStartIso.slice(0, 10);
+      const { data: progressRows, error: progressErr } = await supabaseAdmin
+        .from('weekly_competition_progress')
+        .select('user_id')
+        .eq('week_start', weekStartDate)
+        .eq('did_quiz', true)
+        .eq('did_pledge', true)
+        .eq('did_game', true)
+        .in('user_id', userIds);
+
+      if (progressErr) {
+        if (progressErr.code !== '42P01') {
+          console.warn('Leaderboard competition progress lookup error:', progressErr.message);
+        }
+      } else {
+        for (const row of progressRows || []) {
+          const uid = String((row as any).user_id || '');
+          if (!uid) continue;
+          competitionEnteredByUser.add(uid);
+        }
+      }
+    }
+
     const entries = entriesBase.map((entry: any) => ({
       ...entry,
       winnerTick: winnerTickByUser.has(String(entry.uid)),
       weeklyQuizAttempts: weeklyAttemptCountByUser.get(entry.uid) || 0,
+      competitionEntered: competitionEnteredByUser.has(String(entry.uid)),
     }));
 
     const { data: winnerData } = await supabaseAdmin

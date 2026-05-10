@@ -98,6 +98,7 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [completion, setCompletion] = useState<CompletionSummary | null>(null);
+  const [competitionMessage, setCompetitionMessage] = useState<string | null>(null);
 
   const showToast = (msg: string, ms = 2500) => { setToast(msg); setTimeout(() => setToast(null), ms); };
   const applyPointGain = (earned: number) => { setPoints(p => { const n = p + earned; pointsRef.current = n; return n; }); };
@@ -132,6 +133,17 @@ export default function GamesPage() {
     const finalPoints = pointsRef.current;
     try {
       if (user?.id) await fetch('/api/games/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, gameId: selectedGameId, gameTitle: session?.title || 'Game', pointsEarned: finalPoints, difficulty: 'medium', tasksPlayed: session?.tasks.length || 0 }) });
+    } catch {}
+    try {
+      if (user?.id) {
+        const res = await fetch('/api/competition/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, activity: 'game' }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.message) setCompetitionMessage(String(data.message));
+      }
     } catch {}
     setCompletion({ gameTitle: session?.title || 'Game', pointsEarned: finalPoints });
     setSelectedGameId(null); setSession(null); resetState();
@@ -521,6 +533,9 @@ export default function GamesPage() {
       <Modal isOpen={Boolean(completion)} onClose={() => setCompletion(null)} title="Great Job!">
         <div className="space-y-4 text-center">
           <p className="text-[#6a422d] font-semibold">You completed <strong>{completion?.gameTitle}</strong> and earned <strong>{completion?.pointsEarned ?? 0}</strong> points.</p>
+          {competitionMessage ? (
+            <p className="text-sm font-semibold text-[#0f766e]">{competitionMessage}</p>
+          ) : null}
           <p className="text-sm text-[#a1633a]">Please open Rewards to see your progress and fill the winner contact form so we can contact you if your child wins.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => setCompletion(null)} className="px-4 py-2 rounded-lg border border-[#e5c9a3]/40 text-[#6a422d] font-semibold hover:bg-[#f9f0e6]">Close</button>

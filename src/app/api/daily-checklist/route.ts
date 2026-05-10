@@ -46,6 +46,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const WEEKLY_POINTS_LIMIT = 400;
     const body = await request.json();
     const { userId, date, items, goodDeed } = body;
 
@@ -114,10 +115,13 @@ export async function POST(request: Request) {
           .maybeSingle();
           
         if (user) {
+           const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, (user.weeklypoints || 0) + pointDelta);
+           const weeklyDelta = nextWeekly - Number(user.weeklypoints || 0);
+           const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
            await supabaseAdmin.from('users').update({
-               points: (user.points || 0) + pointDelta,
-               weeklypoints: (user.weeklypoints || 0) + pointDelta,
-               monthlypoints: (user.monthlypoints || 0) + pointDelta
+             points: (user.points || 0) + safeDelta,
+             weeklypoints: nextWeekly,
+             monthlypoints: (user.monthlypoints || 0) + safeDelta
            }).eq('uid', userId);
         }
 
@@ -129,17 +133,23 @@ export async function POST(request: Request) {
           .maybeSingle();
           
         if (up) {
+           const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, (up.weekly_points || 0) + pointDelta);
+           const weeklyDelta = nextWeekly - Number(up.weekly_points || 0);
+           const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
            await supabaseAdmin.from('users_points').update({
-               total_points: (up.total_points || 0) + pointDelta,
-               weekly_points: (up.weekly_points || 0) + pointDelta,
-               monthly_points: (up.monthly_points || 0) + pointDelta
+               total_points: (up.total_points || 0) + safeDelta,
+               weekly_points: nextWeekly,
+               monthly_points: (up.monthly_points || 0) + safeDelta
            }).eq('user_id', userId);
         } else if (user) {
+          const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, Number(user.weeklypoints || 0) + pointDelta);
+          const weeklyDelta = nextWeekly - Number(user.weeklypoints || 0);
+          const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
           await supabaseAdmin.from('users_points').upsert({
             user_id: userId,
-            total_points: Number(user.points || 0) + pointDelta,
-            weekly_points: Number(user.weeklypoints || 0) + pointDelta,
-            monthly_points: Number(user.monthlypoints || 0) + pointDelta,
+            total_points: Number(user.points || 0) + safeDelta,
+            weekly_points: nextWeekly,
+            monthly_points: Number(user.monthlypoints || 0) + safeDelta,
             last_earned_date: new Date().toISOString().slice(0, 10),
           });
         }

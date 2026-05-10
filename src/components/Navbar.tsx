@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { LogOut, Menu, X, Home, Gamepad2, Trophy, BookOpen, Gift, Heart, HelpCircle } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 
 interface NavbarUser {
   name: string;
@@ -22,6 +24,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges, onLogout, user, loading }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const pathname = usePathname();
+  const reduceMotion = useReducedMotion();
 
   const displayUsername = username || user?.name;
   const displayPoints = points !== undefined ? points : user?.points;
@@ -61,7 +65,12 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#6a422d] hover:bg-[#f0fdfa] hover:text-[#0d9488] font-semibold text-sm transition-all"
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all transition-bouncy interactive-focus touch-target ${
+                  pathname === item.href
+                    ? 'bg-[#f0fdfa] text-[#0d9488] shadow-sm'
+                    : 'text-[#6a422d] hover:bg-[#f0fdfa] hover:text-[#0d9488]'
+                }`}
+                aria-current={pathname === item.href ? 'page' : undefined}
               >
                 <item.icon size={16} />
                 {item.label}
@@ -110,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
                       }
                     }}
                     disabled={isLoggingOut}
-                    className="p-2 text-[#ff6b6b] hover:bg-[#fff5f5] rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 text-[#ff6b6b] hover:bg-[#fff5f5] rounded-xl transition interactive-focus disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <LogOut size={20} />
                   </button>
@@ -120,13 +129,13 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
               <div className="flex items-center gap-2">
                 <Link
                   href="/signin"
-                  className="px-4 py-2 text-[#6a422d] font-semibold hover:bg-[#f9f0e6] rounded-xl transition"
+                  className="px-4 py-2.5 text-[#6a422d] font-semibold hover:bg-[#f9f0e6] rounded-xl transition interactive-focus touch-target"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/signup"
-                  className="px-4 py-2 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition"
+                  className="px-4 py-2.5 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition transition-bouncy interactive-focus touch-target"
                 >
                   Join Free
                 </Link>
@@ -136,23 +145,39 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
 
           {/* Mobile Menu Button */}
           <button
-            className="lg:hidden p-2 text-[#6a422d] hover:bg-[#f9f0e6] rounded-xl transition"
+            className="lg:hidden p-2.5 text-[#6a422d] hover:bg-[#f9f0e6] rounded-xl transition interactive-focus touch-target"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-main-menu"
+            aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
         {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-[#e5c9a3]/30">
+        <AnimatePresence>
+          {isMenuOpen && (
+          <motion.div
+            id="mobile-main-menu"
+            className="lg:hidden py-4 border-t border-[#e5c9a3]/30"
+            initial={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="flex flex-col gap-2">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-[#6a422d] hover:bg-[#f0fdfa] hover:text-[#0d9488] font-semibold transition"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all interactive-focus touch-target ${
+                    pathname === item.href
+                      ? 'bg-[#f0fdfa] text-[#0d9488]'
+                      : 'text-[#6a422d] hover:bg-[#f0fdfa] hover:text-[#0d9488]'
+                  }`}
                   onClick={() => setIsMenuOpen(false)}
+                  aria-current={pathname === item.href ? 'page' : undefined}
                 >
                   <item.icon size={20} />
                   {item.label}
@@ -195,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
                           }
                         }}
                         disabled={isLoggingOut}
-                        className="w-full flex items-center justify-center gap-2 bg-[#fff5f5] text-[#ff6b6b] font-semibold px-4 py-3 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-2 bg-[#fff5f5] text-[#ff6b6b] font-semibold px-4 py-3 rounded-xl transition interactive-focus touch-target disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <LogOut size={18} />
                         {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
@@ -207,14 +232,14 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
                     <Link
                       href="/signin"
                       onClick={() => setIsMenuOpen(false)}
-                      className="w-full text-center py-3 text-[#6a422d] font-semibold hover:bg-[#f9f0e6] rounded-xl transition"
+                      className="w-full text-center py-3 text-[#6a422d] font-semibold hover:bg-[#f9f0e6] rounded-xl transition interactive-focus touch-target"
                     >
                       Sign In
                     </Link>
                     <Link
                       href="/signup"
                       onClick={() => setIsMenuOpen(false)}
-                      className="w-full text-center py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-semibold rounded-xl transition"
+                      className="w-full text-center py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-semibold rounded-xl transition interactive-focus touch-target"
                     >
                       Join Free
                     </Link>
@@ -222,8 +247,9 @@ export const Navbar: React.FC<NavbarProps> = ({ username, points, level, badges,
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </nav>
   );

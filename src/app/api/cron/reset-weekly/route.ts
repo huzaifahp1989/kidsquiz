@@ -4,9 +4,22 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const isManualRun = searchParams.get('manual') === '1';
+
+  // Auto-reset is disabled. Keep this endpoint available only for explicit manual runs.
+  if (!isManualRun) {
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      message: 'Automatic weekly reset is disabled. Use ?manual=1 to run this endpoint manually.',
+    });
+  }
+
   // Verify authorization (simple key check)
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
+  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
+  if (!isVercelCron && authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -33,8 +46,8 @@ export async function GET(request: Request) {
          // Also update users table
          await supabaseAdmin
             .from('users')
-            .update({ weekly_points: 0 } as any)
-            .neq('weekly_points', 0);
+            .update({ weeklypoints: 0 } as any)
+            .neq('weeklypoints', 0);
       } else {
         throw error;
       }

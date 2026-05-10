@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface NavCardProps {
   href: string;
@@ -11,12 +12,12 @@ interface NavCardProps {
 }
 
 const colorClasses = {
-  blue: 'bg-blue-100 border-blue-300 hover:shadow-blue-300',
-  green: 'bg-green-100 border-green-300 hover:shadow-green-300',
-  yellow: 'bg-yellow-100 border-yellow-300 hover:shadow-yellow-300',
-  pink: 'bg-pink-100 border-pink-300 hover:shadow-pink-300',
-  purple: 'bg-purple-100 border-purple-300 hover:shadow-purple-300',
-  orange: 'bg-orange-100 border-orange-300 hover:shadow-orange-300',
+  blue: 'from-cyan-50 via-white to-teal-50 border-teal-200',
+  green: 'from-emerald-50 via-white to-teal-50 border-emerald-200',
+  yellow: 'from-amber-50 via-white to-yellow-50 border-amber-200',
+  pink: 'from-rose-50 via-white to-orange-50 border-rose-200',
+  purple: 'from-indigo-50 via-white to-sky-50 border-indigo-200',
+  orange: 'from-orange-50 via-white to-amber-50 border-orange-200',
 };
 
 export const NavCard: React.FC<NavCardProps> = ({
@@ -27,22 +28,28 @@ export const NavCard: React.FC<NavCardProps> = ({
   color,
   comingSoon = false
 }) => {
+  const reduceMotion = useReducedMotion();
+
   const content = (
-    <div className={`${colorClasses[color]} border-4 rounded-3xl p-6 transition-all duration-300 shadow-kids hover:shadow-kids-hover hover:-translate-y-1 cursor-pointer h-full`}>
+    <motion.div
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.015 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.99 }}
+      className={`${colorClasses[color]} surface-card surface-card-hover bg-gradient-to-br border rounded-3xl p-6 transition-all duration-300 transition-bouncy cursor-pointer h-full interactive-focus touch-target`}
+    >
       <div className="text-6xl mb-4 filter drop-shadow-sm">{icon}</div>
-      <h3 className="text-2xl font-bold text-islamic-dark mb-2">{title}</h3>
-      <p className="text-lg text-gray-700 font-medium">{description}</p>
+      <h3 className="text-2xl font-bold text-[#6a422d] mb-2">{title}</h3>
+      <p className="text-lg text-[#825035] font-medium">{description}</p>
       {comingSoon && (
-        <div className="mt-4 inline-block bg-gray-400 text-white px-3 py-1 rounded-full text-xs font-bold">
+        <div className="mt-4 inline-block bg-[#6a422d]/80 text-white px-3 py-1 rounded-full text-xs font-bold">
           Coming Soon
         </div>
       )}
-    </div>
+    </motion.div>
   );
 
   if (comingSoon) {
     return <div className="cursor-not-allowed opacity-60">{content}</div>;
   }
 
-  return <Link href={href}>{content}</Link>;
+  return <Link href={href} className="block rounded-3xl">{content}</Link>;
 };

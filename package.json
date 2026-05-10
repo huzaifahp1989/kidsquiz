@@ -7,13 +7,21 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "cap:sync": "npx cap sync",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios"
   },
   "dependencies": {
+    "@capacitor-community/in-app-review": "^8.0.0",
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "@supabase/supabase-js": "^2.87.1",
     "autoprefixer": "^10.4.16",
     "date-fns": "^2.30.0",
     "dotenv": "^17.3.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.561.0",
     "next": "^16.0.10",
     "nodemailer": "^7.0.12",
@@ -26,6 +34,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "@types/node": "^25.0.3",
     "@types/nodemailer": "^7.0.5",
     "@types/react": "^19.2.7",

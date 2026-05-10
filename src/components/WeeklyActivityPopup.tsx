@@ -63,11 +63,11 @@ export function WeeklyActivityPopup({ userId }: WeeklyActivityPopupProps) {
   const remainingItems = useMemo(() => {
     if (!activities) return [];
     return [
-      activities.quiz <= 0 ? { href: '/quiz', icon: BookOpen, label: 'Do a quiz activity' } : null,
-      activities.game <= 0 ? { href: '/games', icon: Gamepad2, label: 'Do a game activity' } : null,
-      activities.pledge <= 0 ? { href: '/pledge', icon: Sparkles, label: 'Do a Durood & Zikr activity' } : null,
-      activities.recording <= 0 ? { href: 'https://create-me-a-audio.vercel.app/kids-record', icon: Mic, label: 'Do a story recording activity' } : null,
-      { href: '/leaderboard', icon: Star, label: 'Keep going until you reach 5 total activities' },
+      { href: '/quiz', icon: BookOpen, label: 'Do quiz activities' },
+      { href: '/games', icon: Gamepad2, label: 'Do game activities' },
+      { href: '/pledge', icon: Sparkles, label: 'Do Durood & Zikr activities' },
+      { href: 'https://create-me-a-audio.vercel.app/kids-record', icon: Mic, label: 'Do story recording activities' },
+      { href: '/leaderboard', icon: Star, label: 'Any 5 total activities count for the weekly star' },
     ].filter(Boolean) as Array<{ href: string; icon: any; label: string }>;
   }, [activities]);
 
@@ -87,7 +87,7 @@ export function WeeklyActivityPopup({ userId }: WeeklyActivityPopupProps) {
             {qualified ? 'Amazing! You completed all 5 weekly activities.' : `You have ${remaining} activit${remaining === 1 ? 'y' : 'ies'} left to complete this week.`}
           </p>
           <p className="mt-2 text-sm text-[#a1633a]">
-            {qualified ? 'You now have a star on the weekly leaderboard.' : 'Finish all 5 weekly activities to get a star on the weekly leaderboard.'}
+            {qualified ? 'You now have a star on the weekly leaderboard.' : 'Finish any 5 weekly activities to get a star on the weekly leaderboard.'}
           </p>
         </div>
 

@@ -53,6 +53,11 @@ interface User {
   uid: string;
   name: string;
   email: string;
+  city?: string | null;
+  town?: string | null;
+  location?: string | null;
+  age?: number | string | null;
+  child_age?: number | string | null;
   parent_email?: string | null;
   parentEmail?: string | null;
   contactnumber?: string | null;
@@ -68,6 +73,8 @@ interface User {
   contactNumberNormalized?: string;
   parentEmailNormalized?: string;
   madrasahNameNormalized?: string;
+  cityNormalized?: string;
+  ageNormalized?: number | null;
   winnerAboutNormalized?: string;
   winnerFormSubmittedAtNormalized?: string;
   winnerTick?: boolean;
@@ -93,7 +100,7 @@ export default function AdminPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showEditPassword, setShowEditPassword] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', password: '', points: 0, weeklypoints: 0, monthlypoints: 0, winnerTick: false });
+  const [editForm, setEditForm] = useState({ name: '', password: '', points: 0, weeklypoints: 0, monthlypoints: 0, winnerTick: false, city: '', age: '' });
 
   // Pending Claims State
   type PendingClaim = {
@@ -377,7 +384,9 @@ export default function AdminPanel() {
           points: editForm.points,
           weeklypoints: editForm.weeklypoints,
           monthlypoints: editForm.monthlypoints,
-          winnerTick: editForm.winnerTick
+          winnerTick: editForm.winnerTick,
+          city: editForm.city,
+          age: editForm.age === '' ? null : parseInt(editForm.age, 10)
         })
       });
 
@@ -385,7 +394,15 @@ export default function AdminPanel() {
       if (!res.ok) throw new Error(data.error);
       
       // Update local state
-      setUsers(users.map(u => u.uid === editingUser.uid ? { ...u, name: editForm.name || u.name, points: editForm.points, weeklypoints: editForm.weeklypoints, monthlypoints: editForm.monthlypoints } : u));
+      setUsers(users.map(u => u.uid === editingUser.uid ? {
+        ...u,
+        name: editForm.name || u.name,
+        points: editForm.points,
+        weeklypoints: editForm.weeklypoints,
+        monthlypoints: editForm.monthlypoints,
+        cityNormalized: editForm.city.trim(),
+        ageNormalized: editForm.age === '' ? null : (parseInt(editForm.age, 10) || null)
+      } : u));
       setEditingUser(null);
       alert('User updated successfully');
     } catch (err: any) {
@@ -445,14 +462,22 @@ export default function AdminPanel() {
         .maybeSingle();
 
       if (winnerData) {
-         const { data: userPoints } = await supabase
-            .from('users_points')
-            .select('badges, level')
-            .eq('user_id', winnerData.winner_user_id)
-            .maybeSingle();
+         const [{ data: userPoints }, { data: winnerUser }] = await Promise.all([
+           supabase
+             .from('users_points')
+             .select('badges, level')
+             .eq('user_id', winnerData.winner_user_id)
+             .maybeSingle(),
+           supabase
+             .from('users')
+             .select('name')
+             .eq('uid', winnerData.winner_user_id)
+             .maybeSingle(),
+         ]);
             
          setWinner({
              winner_id: winnerData.winner_user_id,
+             winner_name: winnerUser?.name || 'Unknown',
              weekly_points: winnerData.winning_score,
              badges: userPoints?.badges || 0,
              level: userPoints?.level || 1,
@@ -533,6 +558,17 @@ export default function AdminPanel() {
     return user.madrasahNameNormalized || user.madrasahname || user.madrasah_name || user.madrasahName || '';
   };
 
+  const getCity = (user: User) => {
+    return user.cityNormalized || user.city || user.town || user.location || '';
+  };
+
+  const getAge = (user: User) => {
+    const value = user.ageNormalized ?? user.age ?? user.child_age;
+    if (value === null || value === undefined || value === '') return '';
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? String(Math.floor(parsed)) : '';
+  };
+
   const getWinnerAbout = (user: User) => {
     return user.winnerAboutNormalized || user.winner_note || user.winner_notes || user.about_me || user.about_text || '';
   };
@@ -541,9 +577,24 @@ export default function AdminPanel() {
     return user.winnerFormSubmittedAtNormalized || '';
   };
 
+  const getJoinedAt = (user: User) => {
+    return user.created_at || '';
+  };
+
+  const formatDayMonthYear = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleString('en-GB', { month: 'short' });
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+
   const filteredUsers = users.filter(user => 
     (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    getCity(user).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    getAge(user).includes(searchTerm) ||
     getMobileNumber(user).toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.uid || '').includes(searchTerm)
   );
@@ -598,6 +649,12 @@ export default function AdminPanel() {
             className="px-5 py-2.5 rounded-lg font-bold transition bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-2 whitespace-nowrap"
           >
             Announcements
+          </button>
+          <button
+            onClick={() => router.push('/admin/competitions/masjid-al-aqsa')}
+            className="px-5 py-2.5 rounded-lg font-bold transition bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-emerald-300 flex items-center gap-2 whitespace-nowrap"
+          >
+            <TrophyIcon size={18} /> Aqsa Competition
           </button>
           <div className="w-px h-8 bg-slate-300 mx-2 self-center hidden sm:block"></div>
           
@@ -867,6 +924,9 @@ export default function AdminPanel() {
                     <tr>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">User</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Joined</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">City</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Age</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Points</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Weekly</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Monthly</th>
@@ -878,11 +938,11 @@ export default function AdminPanel() {
                   <tbody className="divide-y divide-slate-100">
                     {loadingUsers ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-8 text-center text-slate-500">Loading users...</td>
+                        <td colSpan={11} className="px-6 py-8 text-center text-slate-500">Loading users...</td>
                       </tr>
                     ) : filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-8 text-center text-slate-500">No users found</td>
+                        <td colSpan={11} className="px-6 py-8 text-center text-slate-500">No users found</td>
                       </tr>
                     ) : (
                       filteredUsers.map(user => (
@@ -909,6 +969,11 @@ export default function AdminPanel() {
                               {user.role}
                             </span>
                           </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">
+                            {getJoinedAt(user) ? formatDayMonthYear(getJoinedAt(user)) : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{getCity(user) || '-'}</td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{getAge(user) || '-'}</td>
                           <td className="px-6 py-4 text-sm text-slate-700 font-bold">{user.points}</td>
                           <td className="px-6 py-4 text-sm text-slate-700">{user.weeklypoints}</td>
                           <td className="px-6 py-4 text-sm text-slate-700">{user.monthlypoints}</td>
@@ -952,7 +1017,9 @@ export default function AdminPanel() {
                                   points: user.points || 0,
                                   weeklypoints: user.weeklypoints || 0,
                                   monthlypoints: user.monthlypoints || 0,
-                                  winnerTick: user.winnerTick ?? false
+                                  winnerTick: user.winnerTick ?? false,
+                                  city: getCity(user),
+                                  age: getAge(user)
                                 });
                               }}
                               className="text-indigo-600 hover:text-indigo-900 mr-4 p-2 hover:bg-indigo-50 rounded-full transition-colors"
@@ -1005,17 +1072,18 @@ export default function AdminPanel() {
                       <th className="px-5 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact Number</th>
                       <th className="px-5 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Madrasah</th>
                       <th className="px-5 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">About Child</th>
+                      <th className="px-5 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Joined</th>
                       <th className="px-5 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loadingUsers ? (
                       <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-slate-500">Loading submissions...</td>
+                        <td colSpan={7} className="px-5 py-8 text-center text-slate-500">Loading submissions...</td>
                       </tr>
                     ) : winnerContactUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-slate-500">No winner contact submissions found.</td>
+                        <td colSpan={7} className="px-5 py-8 text-center text-slate-500">No winner contact submissions found.</td>
                       </tr>
                     ) : (
                       winnerContactUsers.map((user) => (
@@ -1028,6 +1096,9 @@ export default function AdminPanel() {
                           <td className="px-5 py-4 text-sm text-slate-700 align-top">{getMobileNumber(user) || '-'}</td>
                           <td className="px-5 py-4 text-sm text-slate-700 align-top">{getMadrasahName(user) || '-'}</td>
                           <td className="px-5 py-4 text-sm text-slate-700 max-w-[420px] whitespace-pre-wrap break-words align-top">{getWinnerAbout(user) || '-'}</td>
+                          <td className="px-5 py-4 text-xs text-slate-500 align-top">
+                            {getJoinedAt(user) ? formatDayMonthYear(getJoinedAt(user)) : '-'}
+                          </td>
                           <td className="px-5 py-4 text-xs text-slate-500 align-top">
                             {getWinnerFormSubmittedAt(user) ? new Date(getWinnerFormSubmittedAt(user)).toLocaleString() : '-'}
                           </td>
@@ -1396,6 +1467,7 @@ export default function AdminPanel() {
                  <div className="mt-8 p-6 bg-yellow-50 border-2 border-yellow-400 rounded-xl">
                     <h4 className="text-2xl font-bold text-yellow-800 mb-2">Winner Selected!</h4>
                     <div className="text-lg space-y-2">
+                      <p><strong>Name:</strong> {winner.winner_name || '-'}</p>
                        <p><strong>User ID:</strong> {winner.winner_id}</p>
                        <p><strong>Weekly Points:</strong> {winner.weekly_points}</p>
                        <p><strong>Badges:</strong> {winner.badges}</p>
@@ -1552,6 +1624,27 @@ export default function AdminPanel() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-1">Leave blank to keep existing password.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+              <input
+                type="text"
+                value={editForm.city}
+                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="Enter city"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Age</label>
+              <input
+                type="number"
+                min={0}
+                value={editForm.age}
+                onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="Enter age"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Total Points</label>

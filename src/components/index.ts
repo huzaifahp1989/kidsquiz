@@ -14,6 +14,7 @@ export * from './RamadanPopup';
 export * from './WinnerPopup';
 export * from './NewsletterPopup';
 export * from './RewardsPosterPopup';
+export * from './BiWeeklyResetPopup';
 export * from './AnnouncementBar';
 export * from './ScrollingTicker';
 export * from './WeeklyActivitiesProgress';

@@ -81,15 +81,15 @@ export async function GET(request: Request) {
       snapshotRows = [];
     }
 
-    let gamesRows: Array<{ points_earned: number | null; played_at: string | null }> = [];
+    let gamesRows: Array<{ points: number | null; playedat: string | null }> = [];
     try {
       const gamesRes = await supabaseAdmin
-        .from('game_activity_logs')
-        .select('points_earned, played_at')
-        .eq('user_id', uid)
-        .gte('played_at', startIso);
+        .from('game_progress')
+        .select('points, playedat')
+        .eq('uid', uid)
+        .gte('playedat', startIso);
       if (!gamesRes.error && gamesRes.data) {
-        gamesRows = gamesRes.data as Array<{ points_earned: number | null; played_at: string | null }>;
+        gamesRows = gamesRes.data as Array<{ points: number | null; playedat: string | null }>;
       }
     } catch {
       gamesRows = [];
@@ -187,12 +187,12 @@ export async function GET(request: Request) {
     }
 
     for (const row of gamesRows) {
-      if (!row.played_at) continue;
-      const key = toMonthKey(new Date(row.played_at));
+      if (!row.playedat) continue;
+      const key = toMonthKey(new Date(row.playedat));
       if (!monthMap.has(key)) continue;
       const live = getLive(key);
       live.gameSessions += 1;
-      live.gamePoints += Number(row.points_earned || 0);
+      live.gamePoints += Number(row.points || 0);
     }
 
     for (const key of monthKeys) {

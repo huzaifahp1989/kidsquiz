@@ -8,6 +8,7 @@ import { mobileAuthHelper } from '@/lib/mobile-auth';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
 import { Eye, EyeOff, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -501,7 +502,12 @@ export default function SignInPage() {
         </div>
 
         {/* Right panel */}
-        <div className="w-full rounded-2xl bg-white shadow-xl border border-[#e5c9a3]/30 p-6 sm:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full rounded-2xl bg-white shadow-xl border border-[#e5c9a3]/30 p-6 sm:p-8"
+        >
           <div className="md:hidden mb-6">
             <h1 className="text-2xl font-extrabold text-[#6a422d]">Sign in</h1>
             <p className="mt-1 text-sm text-[#a1633a]">Continue learning where you left off.</p>
@@ -550,7 +556,7 @@ export default function SignInPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                  className={`w-full rounded-xl border-2 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition ${
+                  className={`w-full rounded-xl border-2 px-4 py-3 interactive-focus touch-target transition ${
                     touched.email && !emailValid ? 'border-[#ff6b6b] bg-[#fff5f5]' : 'border-[#e5c9a3]/40'
                   }`}
                 />
@@ -563,7 +569,7 @@ export default function SignInPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="password" className="block text-sm font-semibold text-[#6a422d]">Password</label>
-                  <button type="button" onClick={onForgotPassword} className="text-xs font-semibold text-[#14b8a6] hover:underline">
+                  <button type="button" onClick={onForgotPassword} className="text-xs font-semibold text-[#14b8a6] hover:underline interactive-focus touch-target">
                     Forgot password?
                   </button>
                 </div>
@@ -576,14 +582,14 @@ export default function SignInPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-                    className={`w-full rounded-xl border-2 px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition ${
+                    className={`w-full rounded-xl border-2 px-4 py-3 pr-11 interactive-focus touch-target transition ${
                       touched.password && !passwordValid ? 'border-[#ff6b6b] bg-[#fff5f5]' : 'border-[#e5c9a3]/40'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 interactive-focus"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -600,7 +606,7 @@ export default function SignInPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#e5c9a3] text-[#14b8a6]"
+                  className="h-4 w-4 rounded border-[#e5c9a3] text-[#14b8a6] interactive-focus"
                 />
                 Keep me signed in
               </label>
@@ -608,7 +614,7 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={!supabaseConfigured || loading || retryIn !== null}
-                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all transition-bouncy interactive-focus touch-target disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in…' : retryIn !== null ? `Please wait ${retryIn}s…` : 'Sign In'}
               </button>
@@ -644,20 +650,20 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all transition-bouncy interactive-focus touch-target disabled:opacity-50"
               >
                 {loading ? 'Verifying…' : 'Verify & Continue'}
               </button>
               <button
                 type="button"
                 onClick={() => { setMfaRequired(false); setMfaCode(''); setMfaFactorId(null); setMfaChallengeId(null); }}
-                className="w-full text-sm text-slate-600 hover:underline"
+                className="w-full text-sm text-slate-600 hover:underline interactive-focus touch-target"
               >
                 Use a different account
               </button>
             </form>
           )}
-        </div>
+        </motion.div>
       </div>
     </div>
   );

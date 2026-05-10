@@ -7,6 +7,7 @@ import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
 import { mobileAuthHelper } from '@/lib/mobile-auth';
 import { Shield, Eye, EyeOff } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -216,7 +217,12 @@ export default function SignupPage() {
         </div>
 
         {/* Right panel - Form */}
-        <div className="w-full rounded-2xl bg-white shadow-xl border border-[#e5c9a3]/30 p-6 sm:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full rounded-2xl bg-white shadow-xl border border-[#e5c9a3]/30 p-6 sm:p-8"
+        >
           <div className="md:hidden mb-6">
             <h1 className="text-2xl font-extrabold text-[#6a422d]">Create Your Account</h1>
             <p className="mt-1 text-sm text-[#a1633a]">Start earning points for learning.</p>
@@ -271,7 +277,7 @@ export default function SignupPage() {
                 <label className="block text-sm font-semibold text-[#6a422d] mb-1">Full name</label>
                 <input
                   type="text"
-                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 interactive-focus touch-target transition"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g., Aisha Khan"
@@ -283,7 +289,7 @@ export default function SignupPage() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 interactive-focus touch-target transition"
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   placeholder="e.g., 10"
@@ -296,7 +302,7 @@ export default function SignupPage() {
                 <label className="block text-sm font-semibold text-[#6a422d] mb-1">Madrasah name</label>
                 <input
                   type="text"
-                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 interactive-focus touch-target transition"
                   value={madrasahName}
                   onChange={(e) => setMadrasahName(e.target.value)}
                   placeholder="e.g., Al Qasswa Madrasah"
@@ -307,7 +313,7 @@ export default function SignupPage() {
                 <label className="block text-sm font-semibold text-[#6a422d] mb-1">Contact number</label>
                 <input
                   type="tel"
-                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 interactive-focus touch-target transition"
                   value={contactNumber}
                   onChange={(e) => setContactNumber(e.target.value)}
                   placeholder="e.g., +44 7404 644610"
@@ -319,7 +325,7 @@ export default function SignupPage() {
                 <label className="block text-sm font-semibold text-[#6a422d] mb-1">Email</label>
                 <input
                   type="email"
-                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                  className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 interactive-focus touch-target transition"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="kid@example.com"
@@ -332,7 +338,7 @@ export default function SignupPage() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 pr-14 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                    className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 pr-14 interactive-focus touch-target transition"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"
@@ -341,7 +347,7 @@ export default function SignupPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a1633a] hover:text-[#14b8a6]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a1633a] hover:text-[#14b8a6] interactive-focus"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -354,7 +360,7 @@ export default function SignupPage() {
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
-                    className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 pr-14 outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6] transition"
+                    className="w-full rounded-xl border-2 border-[#e5c9a3]/40 px-4 py-3 pr-14 interactive-focus touch-target transition"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="Re-enter password"
@@ -363,7 +369,7 @@ export default function SignupPage() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a1633a] hover:text-[#14b8a6]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a1633a] hover:text-[#14b8a6] interactive-focus"
                     aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                   >
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -375,7 +381,7 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={!supabaseConfigured || loading}
-                  className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-[#14b8a6] to-[#0d9488] shadow-lg hover:shadow-xl transition-all transition-bouncy interactive-focus touch-target disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Creating account…' : 'Sign Up'}
                 </button>
@@ -396,13 +402,13 @@ export default function SignupPage() {
             <div className="mt-4 text-center">
               <Link
                 href="/signin"
-                className="inline-block px-6 py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                className="inline-block px-6 py-3 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all transition-bouncy interactive-focus touch-target"
               >
                 Go to Sign In
               </Link>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
     </div>
   );

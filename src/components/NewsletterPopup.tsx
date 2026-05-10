@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Modal, Button } from '@/components';
 
 const STORAGE_KEY = 'newsletter_popup_last_seen';
@@ -101,6 +102,19 @@ export function NewsletterPopup() {
           <p className="mt-1 text-slate-600">
             You can unsubscribe anytime.
           </p>
+        </div>
+
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">Monthly Quiz Competition</p>
+          <p className="mt-1 font-semibold text-emerald-950">Masjid Al-Aqsa Quiz Challenge</p>
+          <p className="mt-1 text-sm text-emerald-900">Submit your answers and join the monthly featured competition.</p>
+          <Link
+            href="/competitions/masjid-al-aqsa"
+            className="mt-3 inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            onClick={close}
+          >
+            Open Competition
+          </Link>
         </div>
 
         {submitted ? (

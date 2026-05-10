@@ -14,6 +14,7 @@ export interface Recording {
   user_id: string | null;
   story_id: string | null;
   audio_path: string;
+  audio_url?: string;
   duration?: number;
   duration_seconds?: number | null;
   status: 'submitted' | 'approved' | 'rejected';

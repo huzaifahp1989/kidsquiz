@@ -26,6 +26,23 @@ const firstString = (...values: any[]) => {
   return '';
 };
 
+const normalizeAge = (...values: any[]): number | null => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) continue;
+    const rounded = Math.floor(parsed);
+    if (rounded >= 0) return rounded;
+  }
+  return null;
+};
+
+const toDateMs = (value: any): number => {
+  if (!value || typeof value !== 'string') return 0;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : 0;
+};
+
 const syncUsersPointsSnapshot = async (
   uid: string,
   points: number,
@@ -152,6 +169,7 @@ export async function GET(request: Request) {
     }
 
     let metadataByUserId = new Map<string, any>();
+    let authUsersById = new Map<string, any>();
     try {
       const { data: authUsers, error: authUsersError } = await supabaseAdmin.auth.admin.listUsers({
         page: 1,
@@ -160,6 +178,7 @@ export async function GET(request: Request) {
       if (authUsersError) {
         console.warn('[admin/users] Failed fetching auth metadata:', authUsersError.message);
       } else {
+        authUsersById = new Map((authUsers?.users || []).map((authUser: any) => [authUser.id, authUser]));
         metadataByUserId = new Map(
           (authUsers?.users || []).map((authUser: any) => [authUser.id, authUser.user_metadata || {}])
         );
@@ -170,6 +189,7 @@ export async function GET(request: Request) {
 
     const enrichedUsers = list.map((user: any) => {
       const meta = metadataByUserId.get(user.uid) || {};
+      const authUser = authUsersById.get(user.uid) || {};
 
       const normalizedMadrasah = firstString(
         user.madrasah_name,
@@ -205,25 +225,53 @@ export async function GET(request: Request) {
         meta.winner_about
       );
 
+      const normalizedCity = firstString(
+        user.city,
+        user.town,
+        user.location,
+        meta.city,
+        meta.town,
+        meta.location
+      );
+
+      const normalizedAge = normalizeAge(
+        user.age,
+        user.child_age,
+        meta.age,
+        meta.childAge,
+        meta.child_age
+      );
+
       const winnerFormSubmittedAt = firstString(
         meta.winnerFormSubmittedAt,
         meta.winner_form_submitted_at
       );
 
+      const joinedAt = firstString(user.created_at, authUser.created_at);
+      const lastActiveAt = firstString(user.updated_at, authUser.last_sign_in_at, joinedAt);
+
       return {
         ...user,
+        created_at: joinedAt || user.created_at,
+        updated_at: lastActiveAt || user.updated_at,
         quizAttempts: quizAttemptsByUser.get(user.uid) || 0,
         winnerTick: winnerTickByUser.has(String(user.uid)),
         madrasahNameNormalized: normalizedMadrasah,
         contactNumberNormalized: normalizedContact,
         parentEmailNormalized: normalizedParentEmail,
         winnerAboutNormalized: normalizedAbout,
+        cityNormalized: normalizedCity,
+        ageNormalized: normalizedAge,
         winnerFormSubmittedAtNormalized: winnerFormSubmittedAt,
       };
     });
 
+    const sortedUsers = [...enrichedUsers].sort((a: any, b: any) => {
+      return toDateMs(b.created_at) - toDateMs(a.created_at);
+    });
+
     console.log(`Debug: Successfully fetched ${users?.length || 0} users`);
-    return NextResponse.json({ users: enrichedUsers });
+    return NextResponse.json({ users: sortedUsers });
   } catch (error: any) {
     console.error('Error fetching users:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -336,7 +384,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json();
-    const { uid, name, points, weeklypoints, monthlypoints, password, winnerTick } = body;
+    const { uid, name, points, weeklypoints, monthlypoints, password, winnerTick, city, age } = body;
 
     if (!uid) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -443,6 +491,44 @@ export async function PUT(request: Request) {
           }
           throw winnerDeleteErr;
         }
+      }
+    }
+
+    if (city !== undefined || age !== undefined) {
+      const { data: authRes, error: authReadErr } = await supabaseAdmin.auth.admin.getUserById(uid);
+      if (authReadErr) {
+        console.error('Admin metadata fetch error:', authReadErr);
+        return NextResponse.json({ error: authReadErr.message }, { status: 500 });
+      }
+
+      const currentMeta = ((authRes?.user?.user_metadata as any) || {}) as Record<string, any>;
+      const nextMeta: Record<string, any> = { ...currentMeta };
+
+      if (city !== undefined) {
+        const safeCity = typeof city === 'string' ? city.trim() : '';
+        if (safeCity) {
+          nextMeta.city = safeCity;
+        } else {
+          delete nextMeta.city;
+        }
+      }
+
+      if (age !== undefined) {
+        const safeAge = normalizeAge(age);
+        if (safeAge === null) {
+          delete nextMeta.age;
+        } else {
+          nextMeta.age = safeAge;
+        }
+      }
+
+      const { error: authUpdateErr } = await supabaseAdmin.auth.admin.updateUserById(uid, {
+        user_metadata: nextMeta,
+      });
+
+      if (authUpdateErr) {
+        console.error('Admin metadata update error:', authUpdateErr);
+        return NextResponse.json({ error: authUpdateErr.message }, { status: 500 });
       }
     }
 

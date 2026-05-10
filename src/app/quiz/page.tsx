@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button, Modal } from '@/components';
+import { BiWeeklyResetPopup, Button, Modal } from '@/components';
 import { CheckCircle, Calendar, Trophy, ArrowLeft, Sparkles, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
@@ -286,17 +286,35 @@ export default function QuizPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center bg-[#fdf8f3]">
-        <div className="text-[#a1633a]">Loading...</div>
-      </div>
+      <>
+        <BiWeeklyResetPopup pageKey="quiz" />
+        <div className="min-h-[70vh] flex items-center justify-center bg-[#fdf8f3]">
+          <div className="text-[#a1633a]">Loading...</div>
+        </div>
+      </>
     );
   }
 
   if (!mode) {
     return (
       <>
+      <BiWeeklyResetPopup pageKey="quiz" />
       <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
         <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+          <Link
+            href="/competitions/masjid-al-aqsa"
+            className="block rounded-2xl border-2 border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 px-5 py-4 shadow-sm hover:border-teal-400 hover:shadow-md transition"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Monthly Featured Quiz</p>
+                <p className="mt-1 font-extrabold text-teal-900 text-base md:text-lg">Masjid Al-Aqsa Quiz Competition</p>
+                <p className="text-sm text-teal-700">Written-answer competition with manual review and cash prizes at month end.</p>
+              </div>
+              <span className="shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-sm font-bold text-white">Open</span>
+            </div>
+          </Link>
+
           {/* Header */}
           <div className="text-center space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#f0fdfa] rounded-full border border-[#14b8a6]/20">
@@ -389,6 +407,10 @@ export default function QuizPage() {
                     <span className="w-2 h-2 rounded-full bg-[#0ea5e9]"></span>
                     Questions refresh every Monday
                   </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#14b8a6]"></span>
+                    Complete any 5 activities every week to qualify for the winner draw
+                  </li>
                 </ul>
               </div>
 
@@ -476,6 +498,7 @@ export default function QuizPage() {
   // Quiz Interface
   return (
     <>
+    <BiWeeklyResetPopup pageKey="quiz" />
     <div className="min-h-screen bg-[#fdf8f3] py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}

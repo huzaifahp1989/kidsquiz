@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal } from '@/components';
+import { BiWeeklyResetPopup, Modal } from '@/components';
 import { useAuth } from '@/lib/auth-context';
 import { awardPoints as awardPointsRpc } from '@/lib/points-service';
 import {
@@ -289,12 +289,12 @@ export default function GamesPage() {
 
   if (selectedGameId && session) {
     return (
-      <div className="min-h-screen bg-[#fdf8f3] py-8 px-4">
+      <div className="page-canvas py-8 px-4">
         <div className="max-w-3xl mx-auto">
           <button onClick={quitGame} className="flex items-center gap-2 text-[#6a422d] hover:text-[#14b8a6] font-semibold mb-6">
             <ArrowLeft size={20} /> Back to Games
           </button>
-          <div className="bg-white rounded-2xl shadow-lg border border-[#e5c9a3]/30 p-6">
+          <div className="hero-panel p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">{session.icon}</span>
@@ -457,28 +457,32 @@ export default function GamesPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
-        <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fffbeb] rounded-full border border-[#fbbf24]/30">
+      <BiWeeklyResetPopup pageKey="games" />
+      <div className="page-canvas pattern-islamic">
+        <div className="page-wrap max-w-5xl space-y-8">
+          <div className="hero-panel text-center space-y-4 p-8 stagger-in">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fffbeb] rounded-full border border-[#fbbf24]/30 mx-auto">
               <Sparkles size={16} className="text-[#f59e0b]" />
               <span className="text-sm font-semibold text-[#b45309]">Learn Through Play</span>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-[#6a422d]">Islamic Games</h1>
             <p className="text-[#a1633a] text-lg max-w-2xl mx-auto">Play fun games while learning about Islam. Earn points for every correct answer!</p>
           </div>
-          <div className="bg-gradient-to-r from-[#ecfeff] to-[#f0fdfa] border border-[#14b8a6]/30 rounded-2xl p-5 text-center">
+          <div className="feature-tile bg-gradient-to-r from-[#ecfeff] to-[#f0fdfa] border-[#14b8a6]/30 p-5 text-center">
             <p className="text-[#0f766e] font-bold text-base md:text-lg">New winner will be announced every Friday.</p>
             <p className="text-[#115e59] mt-2 text-sm md:text-base">
               Please continue taking part most days to win prizes. New games are added to help you gain more points.
             </p>
             <p className="text-[#0f766e] mt-2 text-sm md:text-base font-semibold">
+              Complete any 5 activities every week to enter the winner draw.
+            </p>
+            <p className="text-[#0f766e] mt-2 text-sm md:text-base font-semibold">
               Check the Rewards page for important announcements and your weekly and monthly achievements.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto stagger-in">
             {[{ icon: Star, label: 'Your Points', value: profile?.points || 0, color: 'text-[#f59e0b]' }, { icon: Trophy, label: 'Badges', value: profile?.badges || 0, color: 'text-[#14b8a6]' }, { icon: Target, label: 'Games Played', value: profile?.gamesPlayed || 0, color: 'text-[#8b5cf6]' }].map((stat, idx) => (
-              <div key={idx} className="bg-white rounded-xl p-4 text-center border border-[#e5c9a3]/20 shadow-sm">
+              <div key={idx} className="stat-pill rounded-xl p-4 text-center">
                 <stat.icon size={24} className={`mx-auto mb-2 ${stat.color}`} />
                 <p className="text-2xl font-bold text-[#6a422d]">{stat.value}</p>
                 <p className="text-xs text-[#a1633a]">{stat.label}</p>
@@ -504,9 +508,9 @@ export default function GamesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger-in">
             {gameCatalog.map(game => (
-              <button key={game.id} onClick={() => startGame(game.id)} className="group bg-white rounded-2xl p-6 border border-[#e5c9a3]/20 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 text-left">
+              <button key={game.id} onClick={() => startGame(game.id)} className="feature-tile group rounded-2xl p-6 text-left">
                 <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${game.color} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform mb-4`}>
                   <span className="text-3xl">{game.icon}</span>
                 </div>
@@ -516,7 +520,7 @@ export default function GamesPage() {
               </button>
             ))}
           </div>
-          <div className="bg-[#f0fdfa] rounded-2xl p-6 border border-[#14b8a6]/20">
+          <div className="feature-tile bg-[#f0fdfa] rounded-2xl p-6 border-[#14b8a6]/20">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#14b8a6] flex items-center justify-center flex-shrink-0">
                 <Puzzle size={24} className="text-white" />

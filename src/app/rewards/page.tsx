@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Navbar, Button, WeeklyActivitiesProgress } from '@/components';
-import { Trophy, Star, Award, Lock, Crown, Mic } from 'lucide-react';
+import { Navbar, BiWeeklyResetPopup, Button, WeeklyActivitiesProgress } from '@/components';
+import { Trophy, Star, Award, Lock, Crown, Mic, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 type MonthlyCertificate = {
@@ -90,6 +90,7 @@ export default function RewardsPage() {
   if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-islamic-light to-white">
+        <BiWeeklyResetPopup pageKey="rewards" />
         <Navbar />
         <div className="flex items-center justify-center h-[80vh]">
           <div className="animate-pulse text-xl text-islamic-blue">Loading Rewards...</div>
@@ -173,10 +174,38 @@ export default function RewardsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
+      <BiWeeklyResetPopup pageKey="rewards" />
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        <section className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+          <p className="text-amber-900 font-bold">Weekly points are capped at 400 and reset manually by admin.</p>
+          <p className="text-amber-800 text-sm mt-1">Accounts above 400 are normalized to 300 so there is still 100 points to achieve during the week.</p>
+        </section>
+        <section className="mb-6 rounded-2xl border border-[#14b8a6]/30 bg-[#ecfdf5] p-4 text-center">
+          <p className="text-[#0f766e] font-bold">Complete any 5 activities every week to finish your weekly challenge.</p>
+        </section>
         <WeeklyActivitiesProgress />
+
+        <section className="mb-6 rounded-3xl border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50 p-6 shadow-sm">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-teal-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-800">
+                <Sparkles size={14} /> Monthly Featured Quiz
+              </div>
+              <p className="mt-3 font-extrabold text-teal-900 text-base md:text-lg">Masjid Al-Aqsa Quiz Competition</p>
+              <p className="mt-2 text-sm text-teal-700">
+                Timed written quiz, 1 submission per user, manual admin review, and cash prizes for the end-of-month winners.
+              </p>
+            </div>
+            <Link
+              href="/competitions/masjid-al-aqsa"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-teal-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-teal-500"
+            >
+              <Trophy size={18} /> Enter competition
+            </Link>
+          </div>
+        </section>
 
         <section className="mb-6 rounded-3xl border border-purple-200 bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-6 shadow-sm">
           <div className="flex items-start gap-4">

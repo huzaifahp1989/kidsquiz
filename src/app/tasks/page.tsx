@@ -3,8 +3,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, ClipboardList, Copy, Mail, Mic, Send, Star, Smartphone, UserPlus, Users } from 'lucide-react';
+import { Modal } from '@/components';
 import { useAuth } from '@/lib/auth-context';
-import { APP_STORE_LINKS } from '@/lib/app-store-links';
+import { APP_STORE_LINKS, StorePlatform } from '@/lib/app-store-links';
+import { openStoreReview, requestInAppReviewWithFallback } from '@/lib/in-app-review';
 
 type ReferralPayload = {
   referralCode: string;
@@ -41,6 +43,8 @@ export default function TasksPage() {
   const [iosFeedback, setIosFeedback] = useState<ClaimState>('idle');
   const [androidFeedback, setAndroidFeedback] = useState<ClaimState>('idle');
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [reviewPrompting, setReviewPrompting] = useState<StorePlatform | null>(null);
+  const [isReviewPopupOpen, setIsReviewPopupOpen] = useState(false);
   // Per-task referral claim state keyed by task id
   const [referralClaims, setReferralClaims] = useState<Record<string, ClaimState>>({});
   const [referralClaimMessages, setReferralClaimMessages] = useState<Record<string, string>>({});
@@ -143,9 +147,36 @@ export default function TasksPage() {
   };
 
   const claimFeedbackReward = (platform: 'ios' | 'android') => {
+    if (!user?.id) {
+      setFeedbackMessage('Please sign in first, then submit for review reward.');
+      return;
+    }
     const claimType = platform === 'ios' ? 'feedback_ios' : 'feedback_android';
     const setter = platform === 'ios' ? setIosFeedback : setAndroidFeedback;
     submitClaimRequest(claimType, setter, setFeedbackMessage);
+  };
+
+  const handleOpenReview = async (platform: StorePlatform) => {
+    setReviewPrompting(platform);
+    setFeedbackMessage(null);
+    const result = await requestInAppReviewWithFallback(platform);
+    if (result.status === 'requested') {
+      setFeedbackMessage('Review prompt requested. If the store decides not to show it now, try again later.');
+    } else if (result.status === 'fallback_opened') {
+      setFeedbackMessage('Store page opened. Please leave your rating and review there.');
+    } else if (result.status === 'cooldown') {
+      setFeedbackMessage('Review prompt is on cooldown. Please try again after some time.');
+    } else if (result.status === 'unavailable') {
+      setFeedbackMessage('In-app review is currently unavailable on this device.');
+    } else {
+      setFeedbackMessage(result.message || 'Could not open review right now.');
+    }
+    setReviewPrompting(null);
+  };
+
+  const handleOpenStore = (platform: StorePlatform) => {
+    openStoreReview(platform);
+    setFeedbackMessage('Store page opened. Please leave your rating and review there.');
   };
 
   const claimReferralReward = (task: InviteTask) => {
@@ -291,6 +322,22 @@ export default function TasksPage() {
           </Link>
         </section>
 
+        <section className="bg-white rounded-2xl border border-[#e5c9a3]/20 shadow-lg p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Star size={18} className="text-[#f59e0b]" />
+            <h2 className="text-2xl font-bold text-[#6a422d]">Leave a Review</h2>
+          </div>
+          <p className="text-sm text-[#a1633a]">
+            Open the review popup to leave a review on Apple App Store or Google Play.
+          </p>
+          <button
+            onClick={() => setIsReviewPopupOpen(true)}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white font-bold shadow-md"
+          >
+            <Star size={16} /> Open Review Popup
+          </button>
+        </section>
+
         {!user ? (
           <div className="bg-white rounded-2xl border border-[#e5c9a3]/20 shadow-lg p-8 text-center space-y-4">
             <Users size={42} className="mx-auto text-[#6366f1]" />
@@ -392,70 +439,12 @@ export default function TasksPage() {
               <p className="text-sm text-[#a1633a]">
                 Leave a review for Kids Zone on the Apple App Store or Google Play and earn +30 bonus points. Click &ldquo;Submit for Review&rdquo; after leaving your review — the admin will approve and add your points.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* iOS */}
-                <div className="rounded-2xl border border-[#e5c9a3]/30 bg-[#f8fafc] p-5 flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <Smartphone size={20} className="text-[#1d4ed8]" />
-                    <p className="font-bold text-[#1e293b]">Apple App Store</p>
-                  </div>
-                  <p className="text-xs text-[#64748b]">Open the App Store, leave a star rating and a short review for Kids Zone.</p>
-                  <div className="flex flex-wrap gap-2">
-                    <a
-                      href={APP_STORE_LINKS.ios}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] font-semibold text-sm"
-                    >
-                      Open App Store
-                    </a>
-                    <button
-                      disabled={iosFeedback === 'loading' || iosFeedback === 'submitted' || iosFeedback === 'already_submitted'}
-                      onClick={() => claimFeedbackReward('ios')}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition ${
-                        iosFeedback === 'submitted' || iosFeedback === 'already_submitted'
-                          ? 'bg-[#dcfce7] text-[#166534] border border-[#86efac]'
-                          : iosFeedback === 'error'
-                          ? 'bg-[#fff1f2] text-[#be123c] border border-[#fecdd3]'
-                          : 'bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white shadow-md'
-                      } disabled:opacity-60`}
-                    >
-                      {iosFeedback === 'submitted' ? '✓ Submitted for Review' : iosFeedback === 'already_submitted' ? '✓ Already Submitted' : iosFeedback === 'loading' ? 'Submitting…' : 'Submit for Review (+30 pts)'}
-                    </button>
-                  </div>
-                </div>
-                {/* Android */}
-                <div className="rounded-2xl border border-[#e5c9a3]/30 bg-[#f8fafc] p-5 flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <Smartphone size={20} className="text-[#15803d]" />
-                    <p className="font-bold text-[#1e293b]">Google Play</p>
-                  </div>
-                  <p className="text-xs text-[#64748b]">Open Google Play, leave a star rating and a short review for Kids Zone.</p>
-                  <div className="flex flex-wrap gap-2">
-                    <a
-                      href={APP_STORE_LINKS.android}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d] font-semibold text-sm"
-                    >
-                      Open Google Play
-                    </a>
-                    <button
-                      disabled={androidFeedback === 'loading' || androidFeedback === 'submitted' || androidFeedback === 'already_submitted'}
-                      onClick={() => claimFeedbackReward('android')}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition ${
-                        androidFeedback === 'submitted' || androidFeedback === 'already_submitted'
-                          ? 'bg-[#dcfce7] text-[#166534] border border-[#86efac]'
-                          : androidFeedback === 'error'
-                          ? 'bg-[#fff1f2] text-[#be123c] border border-[#fecdd3]'
-                          : 'bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white shadow-md'
-                      } disabled:opacity-60`}
-                    >
-                      {androidFeedback === 'submitted' ? '✓ Submitted for Review' : androidFeedback === 'already_submitted' ? '✓ Already Submitted' : androidFeedback === 'loading' ? 'Submitting…' : 'Submit for Review (+30 pts)'}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <button
+                onClick={() => setIsReviewPopupOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white font-bold shadow-md"
+              >
+                <Star size={16} /> Open Review Popup
+              </button>
               {feedbackMessage ? (
                 <p className={`text-sm font-semibold ${
                   iosFeedback === 'error' || androidFeedback === 'error' ? 'text-[#be123c]' : 'text-[#0f766e]'
@@ -527,6 +516,86 @@ export default function TasksPage() {
             </section>
           </>
         )}
+
+        <Modal isOpen={isReviewPopupOpen} onClose={() => setIsReviewPopupOpen(false)} title="Leave a Review" size="lg">
+          <div className="space-y-4">
+            <p className="text-sm text-[#a1633a]">
+              Choose your platform, leave a review, then click submit so admin can approve +30 points.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-[#e5c9a3]/30 bg-[#f8fafc] p-5 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone size={20} className="text-[#1d4ed8]" />
+                  <p className="font-bold text-[#1e293b]">Apple App Store</p>
+                </div>
+                <p className="text-xs text-[#64748b]">Open the App Store, leave a rating and short review.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleOpenStore('ios')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] font-semibold text-sm"
+                  >
+                    Open App Store
+                  </button>
+                  <button
+                    onClick={() => void handleOpenReview('ios')}
+                    disabled={reviewPrompting === 'ios'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bfdbfe] bg-white text-[#1d4ed8] font-semibold text-sm disabled:opacity-60"
+                  >
+                    {reviewPrompting === 'ios' ? 'Opening…' : 'In-App Review'}
+                  </button>
+                  <button
+                    disabled={iosFeedback === 'loading' || iosFeedback === 'submitted' || iosFeedback === 'already_submitted'}
+                    onClick={() => claimFeedbackReward('ios')}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition ${
+                      iosFeedback === 'submitted' || iosFeedback === 'already_submitted'
+                        ? 'bg-[#dcfce7] text-[#166534] border border-[#86efac]'
+                        : iosFeedback === 'error'
+                        ? 'bg-[#fff1f2] text-[#be123c] border border-[#fecdd3]'
+                        : 'bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white shadow-md'
+                    } disabled:opacity-60`}
+                  >
+                    {iosFeedback === 'submitted' ? '✓ Submitted for Review' : iosFeedback === 'already_submitted' ? '✓ Already Submitted' : iosFeedback === 'loading' ? 'Submitting…' : 'Submit for Review (+30 pts)'}
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-[#e5c9a3]/30 bg-[#f8fafc] p-5 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone size={20} className="text-[#15803d]" />
+                  <p className="font-bold text-[#1e293b]">Google Play</p>
+                </div>
+                <p className="text-xs text-[#64748b]">Open Google Play, leave a rating and short review.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleOpenStore('android')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d] font-semibold text-sm"
+                  >
+                    Open Google Play
+                  </button>
+                  <button
+                    onClick={() => void handleOpenReview('android')}
+                    disabled={reviewPrompting === 'android'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#bbf7d0] bg-white text-[#15803d] font-semibold text-sm disabled:opacity-60"
+                  >
+                    {reviewPrompting === 'android' ? 'Opening…' : 'In-App Review'}
+                  </button>
+                  <button
+                    disabled={androidFeedback === 'loading' || androidFeedback === 'submitted' || androidFeedback === 'already_submitted'}
+                    onClick={() => claimFeedbackReward('android')}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition ${
+                      androidFeedback === 'submitted' || androidFeedback === 'already_submitted'
+                        ? 'bg-[#dcfce7] text-[#166534] border border-[#86efac]'
+                        : androidFeedback === 'error'
+                        ? 'bg-[#fff1f2] text-[#be123c] border border-[#fecdd3]'
+                        : 'bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white shadow-md'
+                    } disabled:opacity-60`}
+                  >
+                    {androidFeedback === 'submitted' ? '✓ Submitted for Review' : androidFeedback === 'already_submitted' ? '✓ Already Submitted' : androidFeedback === 'loading' ? 'Submitting…' : 'Submit for Review (+30 pts)'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ export async function awardPointsWithDailyCapByUserId(
   options: ServerAwardOptions = {}
 ): Promise<ServerAwardPointsResult> {
   const dailyLimit = 100;
+  const weeklyLimit = 400;
   const countTowardDailyLimit = options.countTowardDailyLimit !== false;
 
   if (!requestedPoints || requestedPoints <= 0) {
@@ -118,9 +119,10 @@ export async function awardPointsWithDailyCapByUserId(
   const baseMonthly = Number(existingRow?.monthly_points ?? userRow?.monthlypoints ?? 0);
   const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr;
   const currentTodayPoints = isNewDay ? 0 : Number(existingRow?.today_points ?? 0);
-  const pointsAwarded = countTowardDailyLimit
+  const cappedByDaily = countTowardDailyLimit
     ? Math.max(0, Math.min(requestedPoints, dailyLimit - currentTodayPoints))
     : requestedPoints;
+  const pointsAwarded = Math.max(0, Math.min(cappedByDaily, weeklyLimit - baseWeekly));
 
   if (pointsAwarded <= 0) {
     const badges = Math.floor(baseTotal / 100);
@@ -141,7 +143,7 @@ export async function awardPointsWithDailyCapByUserId(
   }
 
   const totalPoints = baseTotal + pointsAwarded;
-  const weeklyPoints = baseWeekly + pointsAwarded;
+  const weeklyPoints = Math.min(weeklyLimit, baseWeekly + pointsAwarded);
   const monthlyPoints = baseMonthly + pointsAwarded;
   const todayPoints = countTowardDailyLimit ? currentTodayPoints + pointsAwarded : currentTodayPoints;
   const badges = Math.floor(totalPoints / 100);

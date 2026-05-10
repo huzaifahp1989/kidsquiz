@@ -11,16 +11,13 @@ export async function POST(req: Request) {
     }
 
     const payload = {
-      user_id: userId,
-      game_id: String(gameId),
-      game_title: gameTitle ? String(gameTitle) : 'Game',
-      points_earned: Number(pointsEarned || 0),
-      difficulty: difficulty ? String(difficulty) : null,
-      tasks_played: Number(tasksPlayed || 0),
-      played_at: new Date().toISOString(),
+      uid: userId,
+      gameid: String(gameId),
+      points: Number(pointsEarned || 0),
+      playedat: new Date().toISOString(),
     };
 
-    const { error } = await supabaseAdmin.from('game_activity_logs').insert(payload);
+    const { error } = await supabaseAdmin.from('game_progress').insert(payload);
 
     if (error) {
       // If the table does not exist yet, don't fail gameplay.

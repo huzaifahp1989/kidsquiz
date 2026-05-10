@@ -3,6 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { isTestModeEmail } from '@/lib/test-mode';
 
 export const dynamic = 'force-dynamic';
+const WEEKLY_CAP = 400;
+const WEEKLY_NORMALIZED = 300;
+const STAR_MIN_WEEKLY_POINTS = 300;
+
+const normalizeLeaderboardPoints = (value: number) => {
+  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  return safeValue >= WEEKLY_CAP ? WEEKLY_NORMALIZED : safeValue;
+};
 
 const sanitizeName = (name: string | null | undefined, uid?: string | null) => {
   const t = (name ?? '').trim();
@@ -41,10 +49,24 @@ function getCurrentWeekRangeUtc() {
   return { weekStartIso: weekStart.toISOString(), weekEndIso: weekEnd.toISOString() };
 }
 
-function buildWeeklyChallenge(summary: { quizCount: number; gameCount: number; pledgeCount: number; recordingCount: number }) {
+function buildWeeklyChallenge(
+  summary: { quizCount: number; gameCount: number; pledgeCount: number; recordingCount: number },
+  weeklyPoints: number
+) {
   const totalCompleted = summary.quizCount + summary.gameCount + summary.pledgeCount + summary.recordingCount;
-  return totalCompleted >= 5;
+  return totalCompleted >= 5 && weeklyPoints > STAR_MIN_WEEKLY_POINTS;
 }
+
+const parseDateOnlyUtc = (value: string | null | undefined) => {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mm) || !Number.isFinite(d)) return null;
+  return Date.UTC(y, mm - 1, d);
+};
 
 export async function GET(req: Request) {
   try {
@@ -68,6 +90,24 @@ export async function GET(req: Request) {
     }
 
     const filteredRows = (data || []).filter((row: any) => !isTestModeEmail(row.users?.email));
+
+    const overCapUserIds = filteredRows
+      .filter((row: any) => Number(row.weekly_points ?? row.users?.weeklypoints ?? 0) >= WEEKLY_CAP)
+      .map((row: any) => String(row.user_id || ''))
+      .filter(Boolean);
+
+    if (overCapUserIds.length > 0) {
+      await Promise.all([
+        supabaseAdmin
+          .from('users_points')
+          .update({ weekly_points: WEEKLY_NORMALIZED } as any)
+          .in('user_id', overCapUserIds),
+        supabaseAdmin
+          .from('users')
+          .update({ weeklypoints: WEEKLY_NORMALIZED } as any)
+          .in('uid', overCapUserIds),
+      ]);
+    }
     const rawUserIds = filteredRows.map((row: any) => row.user_id).filter(Boolean);
 
     const profilesByUid = new Map<string, any>();
@@ -118,8 +158,10 @@ export async function GET(req: Request) {
         userMeta.madrasah_name
       );
       const totalPoints = Number(row.total_points ?? row.users?.points ?? 0);
-      const weeklyPoints = Number(row.weekly_points ?? row.users?.weeklypoints ?? 0);
-      const monthlyPoints = Number(row.monthly_points ?? row.users?.monthlypoints ?? 0);
+      const rawWeeklyPoints = Number(row.weekly_points ?? row.users?.weeklypoints ?? 0);
+      const rawMonthlyPoints = Number(row.monthly_points ?? row.users?.monthlypoints ?? 0);
+      const weeklyPoints = normalizeLeaderboardPoints(rawWeeklyPoints);
+      const monthlyPoints = normalizeLeaderboardPoints(rawMonthlyPoints);
       
       // Use the appropriate points for display
       const displayPoints = isMonthly ? monthlyPoints : weeklyPoints;
@@ -173,11 +215,11 @@ export async function GET(req: Request) {
           .gte('completed_at', weekStartIso)
           .lt('completed_at', weekEndIso),
         supabaseAdmin
-          .from('game_activity_logs')
-          .select('user_id')
-          .in('user_id', userIds)
-          .gte('played_at', weekStartIso)
-          .lt('played_at', weekEndIso),
+          .from('game_progress')
+          .select('uid')
+          .in('uid', userIds)
+          .gte('playedat', weekStartIso)
+          .lt('playedat', weekEndIso),
         supabaseAdmin
           .from('pledges')
           .select('user_id')
@@ -206,7 +248,7 @@ export async function GET(req: Request) {
         console.error('Leaderboard weekly games error:', weeklyGamesRes.error);
       } else {
         for (const row of weeklyGamesRes.data || []) {
-          const uid = String((row as any).user_id || '');
+          const uid = String((row as any).uid || '');
           if (!uid) continue;
           weeklyGameCountByUser.set(uid, (weeklyGameCountByUser.get(uid) || 0) + 1);
         }
@@ -242,8 +284,38 @@ export async function GET(req: Request) {
         gameCount: weeklyGameCountByUser.get(entry.uid) || 0,
         pledgeCount: weeklyPledgeCountByUser.get(entry.uid) || 0,
         recordingCount: weeklyRecordingCountByUser.get(entry.uid) || 0,
-      }),
+      }, Number(entry.weeklyPoints || 0)),
     }));
+
+    entries.sort((a: any, b: any) => {
+      // In weekly tab, always place starred users first.
+      if (!isMonthly) {
+        const aStar = Boolean(a.weeklyChallengeDone);
+        const bStar = Boolean(b.weeklyChallengeDone);
+        if (aStar !== bStar) return aStar ? -1 : 1;
+      }
+
+      const aDate = parseDateOnlyUtc(a.lastPlayedDate);
+      const bDate = parseDateOnlyUtc(b.lastPlayedDate);
+
+      // Always keep most recently played users at the top.
+      if (aDate !== null && bDate !== null && aDate !== bDate) {
+        return bDate - aDate;
+      }
+
+      // Users without a valid played date should stay at the bottom.
+      if (aDate === null && bDate !== null) return 1;
+      if (aDate !== null && bDate === null) return -1;
+
+      const aDisplayPoints = isMonthly ? Number(a.monthlyPoints ?? 0) : Number(a.weeklyPoints ?? 0);
+      const bDisplayPoints = isMonthly ? Number(b.monthlyPoints ?? 0) : Number(b.weeklyPoints ?? 0);
+
+      if (aDisplayPoints !== bDisplayPoints) {
+        return bDisplayPoints - aDisplayPoints;
+      }
+
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     const { data: winnerData } = await supabaseAdmin
       .from('weekly_winners')
@@ -261,7 +333,7 @@ export async function GET(req: Request) {
           uid: winnerData.user_id,
           name: winnerName,
           level: winnerData.level ?? 1,
-          points: winnerData.weekly_points ?? 0,
+          points: Number(winnerData.weekly_points || 0) > WEEKLY_CAP ? WEEKLY_NORMALIZED : (winnerData.weekly_points ?? 0),
           badges: winnerData.badges ?? 0,
         };
       }

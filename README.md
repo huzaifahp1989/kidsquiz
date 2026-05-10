@@ -70,6 +70,47 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+## Native In-App Review (Capacitor)
+
+This project includes a review helper in [src/lib/in-app-review.ts](src/lib/in-app-review.ts) that:
+
+- Requests native in-app review in a Capacitor runtime (Android/iOS)
+- Falls back to opening Play Store / App Store review pages
+- Applies a local cooldown to avoid repeated prompts
+
+To enable native dialogs in your Capacitor app, install a compatible review plugin in your mobile wrapper project and sync platforms. Example flow:
+
+```bash
+npm install @capacitor-community/in-app-review @capacitor/core
+npm install -D @capacitor/cli
+npm install @capacitor/android @capacitor/ios
+npx cap add android
+npx cap add ios
+npx cap sync
+```
+
+This repository now includes:
+
+- `capacitor.config.ts`
+- `android/` and `ios/` native platform projects
+- `www/` fallback web directory required by Capacitor sync
+
+For production WebView loading from your deployed Next app, set `CAPACITOR_SERVER_URL` in your environment.
+
+Then make sure these environment variables are set (see `.env.example`):
+
+- `NEXT_PUBLIC_IOS_APP_ID`
+- `NEXT_PUBLIC_ANDROID_PACKAGE_NAME`
+- `NEXT_PUBLIC_IOS_APP_URL`
+- `NEXT_PUBLIC_ANDROID_APP_URL`
+
+Important behavior notes:
+
+- Play Store and App Store decide if/when to show the review dialog.
+- A successful API call does not guarantee the popup is shown.
+- Validate on Play internal testing / TestFlight builds, not only local debug installs.
+- iOS builds must still be opened and signed on macOS with Xcode.
+
 ## Project Structure
 
 ```

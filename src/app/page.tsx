@@ -67,14 +67,22 @@ export default function Home() {
       color: 'from-[#6366f1] to-[#4338ca]',
       bgColor: 'bg-[#eef2ff]',
     },
+    {
+      href: '/competitions/masjid-al-aqsa',
+      icon: Trophy,
+      title: 'Monthly Featured Quiz',
+      description: 'Masjid Al-Aqsa written quiz with prizes',
+      color: 'from-[#14b8a6] to-[#0d9488]',
+      bgColor: 'bg-[#f0fdfa]',
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="page-canvas pattern-islamic">
+      <div className="page-wrap space-y-8">
         
         {/* Hero Section */}
-        <section className="relative overflow-hidden rounded-3xl bg-white shadow-xl border border-[#e5c9a3]/30">
+        <section className="hero-panel stagger-in">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#14b8a6]/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-[#fbbf24]/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2"></div>
           
@@ -129,7 +137,7 @@ export default function Home() {
         </section>
 
         {/* Stats Row */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-in">
           {[
             { icon: Star, label: 'Points', value: user.points, color: 'text-[#f59e0b]', bg: 'bg-[#fffbeb]' },
             { icon: Target, label: 'Level', value: user.level, color: 'text-[#14b8a6]', bg: 'bg-[#f0fdfa]' },
@@ -138,7 +146,7 @@ export default function Home() {
           ].map((stat, idx) => (
             <div
               key={idx}
-              className={`${stat.bg} rounded-2xl p-5 border border-[#e5c9a3]/20 hover:shadow-md transition-shadow`}
+              className={`${stat.bg} stat-pill p-5`}
             >
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-xl bg-white ${stat.color}`}>
@@ -158,7 +166,7 @@ export default function Home() {
         <ReferralTokenHub />
 
         {/* Progress Section */}
-        <section className="bg-white rounded-2xl p-6 shadow-lg border border-[#e5c9a3]/20">
+        <section className="surface-card p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] flex items-center justify-center">
@@ -180,13 +188,33 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="feature-tile rounded-3xl border-teal-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50 p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-teal-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-800">
+                <Sparkles size={14} /> Monthly Featured Quiz
+              </div>
+              <h2 className="mt-3 text-2xl md:text-3xl font-black text-[#134e4a]">Masjid Al-Aqsa Quiz Competition</h2>
+              <p className="mt-2 text-sm md:text-base leading-6 text-[#0f766e]">
+                This month&apos;s featured contest is a written Islamic quiz on Masjid Al-Aqsa. Submit once, wait for admin review, and winners will receive cash prizes at the end of the month.
+              </p>
+            </div>
+            <Link
+              href="/competitions/masjid-al-aqsa"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:from-teal-500 hover:to-emerald-500"
+            >
+              <Trophy size={18} /> Enter Quiz
+            </Link>
+          </div>
+        </section>
+
         {/* Quick Actions */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
           {quickActions.map((action, idx) => (
             <Link
               key={idx}
               href={action.href}
-              className={`${action.bgColor} group rounded-2xl p-5 border border-[#e5c9a3]/20 hover:shadow-lg transition-all hover:-translate-y-1`}
+              className={`${action.bgColor} feature-tile group rounded-2xl p-5`}
             >
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
                 <action.icon size={24} className="text-white" />
@@ -198,8 +226,8 @@ export default function Home() {
         </section>
 
         {/* Featured Section */}
-        <section className="grid md:grid-cols-2 gap-6">
-          <div className="bg-gradient-to-br from-[#14b8a6] to-[#0d9488] rounded-2xl p-6 text-white">
+        <section className="grid md:grid-cols-2 gap-6 stagger-in">
+          <div className="cta-panel bg-gradient-to-br from-[#14b8a6] to-[#0d9488] text-white">
             <div className="flex items-start justify-between">
               <div>
                 <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-semibold mb-3">Daily Challenge</span>
@@ -216,7 +244,7 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] rounded-2xl p-6 text-white">
+          <div className="cta-panel bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] text-white">
             <div className="flex items-start justify-between">
               <div>
                 <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-semibold mb-3">New Games</span>
@@ -234,7 +262,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-gradient-to-r from-[#0f172a] to-[#1e293b] rounded-2xl p-6 text-white border border-[#334155]">
+        <section className="cta-panel bg-gradient-to-r from-[#0f172a] to-[#1e293b] text-white border border-[#334155]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[#93c5fd]">Mobile App</p>
@@ -265,7 +293,7 @@ export default function Home() {
         </section>
 
         {/* Tip Card */}
-        <section className="bg-[#f0fdfa] rounded-2xl p-6 border border-[#14b8a6]/20">
+        <section className="feature-tile bg-[#f0fdfa] rounded-2xl p-6 border-[#14b8a6]/20">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-[#14b8a6] flex items-center justify-center flex-shrink-0">
               <span className="text-2xl">💡</span>

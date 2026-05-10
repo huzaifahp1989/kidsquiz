@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { Trophy, RefreshCw, Crown, Medal, Award, Sparkles, Star } from 'lucide-react';
@@ -19,14 +20,30 @@ type Entry = {
   weeklyChallengeDone?: boolean;
 };
 
+const POLICY_POPUP_KEY = 'leaderboard_policy_popup_v1';
+
 export default function LeaderboardClient() {
-  const [activeTab, setActiveTab] = useState<'weekly' | 'monthly'>('monthly');
+  const [activeTab, setActiveTab] = useState<'weekly' | 'monthly'>('weekly');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [weeklyChallenge, setWeeklyChallenge] = useState<{ remaining: number; qualifiedForDraw: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showPolicyPopup, setShowPolicyPopup] = useState(false);
+  const [popupMounted, setPopupMounted] = useState(false);
   const { profile } = useAuth();
   const fetchAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setPopupMounted(true);
+    if (typeof window !== 'undefined' && !sessionStorage.getItem(POLICY_POPUP_KEY)) {
+      setShowPolicyPopup(true);
+    }
+  }, []);
+
+  const dismissPolicyPopup = () => {
+    sessionStorage.setItem(POLICY_POPUP_KEY, '1');
+    setShowPolicyPopup(false);
+  };
 
   const loadLeaderboard = useCallback(async (opts?: { soft?: boolean }) => {
     if (!opts?.soft) setLoading(true);
@@ -143,7 +160,31 @@ export default function LeaderboardClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
+    <>
+      {popupMounted && showPolicyPopup && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4" role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-amber-200">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-3xl">🏆</span>
+              <h2 className="text-lg font-bold text-[#6a422d]">Weekly Points Update</h2>
+            </div>
+            <ul className="space-y-2 text-sm text-[#6a422d]">
+              <li className="flex items-start gap-2"><span className="text-amber-500 font-bold mt-0.5">•</span><span>Weekly points are <strong>capped at 400</strong> per week.</span></li>
+              <li className="flex items-start gap-2"><span className="text-amber-500 font-bold mt-0.5">•</span><span>Anyone who reached <strong>400 points has been reset to 300</strong>, so there are 100 points left to earn this week.</span></li>
+              <li className="flex items-start gap-2"><span className="text-amber-500 font-bold mt-0.5">•</span><span>Weekly points are reset manually by admin. Keep playing to stay on top!</span></li>
+              <li className="flex items-start gap-2"><span className="text-amber-500 font-bold mt-0.5">•</span><span>To get a star and to enter prize draw stay active and get 300 points weekly.</span></li>
+            </ul>
+            <button
+              onClick={dismissPolicyPopup}
+              className="mt-5 w-full rounded-xl bg-gradient-to-r from-[#14b8a6] to-[#0d9488] py-3 text-white font-bold hover:opacity-90 transition"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+      <div className="min-h-screen bg-[#fdf8f3] pattern-islamic">
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fffbeb] rounded-full border border-[#fbbf24]/30">
@@ -254,7 +295,7 @@ export default function LeaderboardClient() {
           <div className="bg-white rounded-2xl shadow-lg border border-[#e5c9a3]/30 overflow-hidden">
             <div className="p-6 bg-gradient-to-r from-[#14b8a6] to-[#0d9488] text-white">
               <h2 className="text-xl font-bold">{activeTab === 'weekly' ? 'Weekly Rankings' : 'Monthly Rankings'}</h2>
-              <p className="text-sm text-white/80">{activeTab === 'weekly' ? 'Resets every Monday' : 'Resets 1st of each month'}</p>
+              <p className="text-sm text-white/80">{activeTab === 'weekly' ? 'Reset manually by admin' : 'Resets 1st of each month'}</p>
             </div>
 
             <div className="divide-y divide-[#e5c9a3]/20">
@@ -274,7 +315,7 @@ export default function LeaderboardClient() {
                       {entry.weeklyChallengeDone && activeTab === 'weekly' ? <span aria-label="Weekly challenge complete" className="text-amber-500">⭐</span> : null}
                     </p>
                     {!entry.weeklyChallengeDone && activeTab === 'weekly' ? (
-                      <p className="text-xs text-[#0f766e]">Finish 5 weekly activities to get a star</p>
+                      <p className="text-xs text-[#0f766e]">To get a star and to enter prize draw stay active and get 300 points weekly.</p>
                     ) : null}
                     <p className="text-xs text-[#a1633a]">Madrasah: {entry.madrasahName || ''}</p>
                     <p className="text-sm text-[#a1633a]">Level {entry.level}</p>
@@ -336,5 +377,6 @@ export default function LeaderboardClient() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -38,23 +38,47 @@ This guide will help you deploy your platform to production.
    - Click "Import"
 
 4. **Configure Environment Variables**
-   - In Vercel dashboard: Settings > Environment Variables
-   - Add all variables from `.env.example`:
-     ```
-     NEXT_PUBLIC_FIREBASE_API_KEY
-     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-     NEXT_PUBLIC_FIREBASE_PROJECT_ID
-     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-     NEXT_PUBLIC_FIREBASE_APP_ID
-     ```
+    - In Vercel dashboard: Settings > Environment Variables
+    - Add variables from `.env.example` (minimum required):
+       ```
+       NEXT_PUBLIC_SUPABASE_URL
+       NEXT_PUBLIC_SUPABASE_ANON_KEY
+       NEXT_PUBLIC_APP_URL
+       ```
+    - Recommended for server routes and reminders:
+       ```
+       SUPABASE_SERVICE_ROLE_KEY
+       RESEND_API_KEY
+       CRON_SECRET
+       REMINDER_TOKEN_SECRET
+       ```
+    - Optional store/review links used by Tasks page:
+       ```
+       NEXT_PUBLIC_IOS_APP_URL
+       NEXT_PUBLIC_ANDROID_APP_URL
+       NEXT_PUBLIC_IOS_APP_ID
+       NEXT_PUBLIC_ANDROID_PACKAGE_NAME
+       ```
 
-5. **Deploy**
+5. **Set Production App URL**
+    - After first Vercel deploy, copy your app URL (for example `https://your-app.vercel.app`)
+    - Set:
+       - `NEXT_PUBLIC_APP_URL=https://your-app.vercel.app`
+
+6. **Capacitor WebView (if using mobile wrapper)**
+    - Set:
+       - `CAPACITOR_SERVER_URL=https://your-app.vercel.app`
+    - Then sync platforms:
+       ```bash
+       npx cap sync
+       ```
+
+7. **Deploy**
    - Click "Deploy"
    - Wait for build to complete
    - Your app is live! 🎉
 
-6. **Custom Domain (Optional)**
+8. **Custom Domain (Optional)**
    - Go to Settings > Domains
    - Add your domain name
    - Follow DNS instructions

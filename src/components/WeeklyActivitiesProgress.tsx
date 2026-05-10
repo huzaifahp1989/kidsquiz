@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { BookOpen, CheckCircle2, Circle, Gamepad2, Mic, Sparkles, Star } from 'lucide-react';
+import { BookOpen, Gamepad2, Mic, Sparkles, Star } from 'lucide-react';
 import { WeeklyActivityPopup } from './WeeklyActivityPopup';
 
 type WeeklyActivities = {
@@ -27,32 +27,38 @@ export function WeeklyActivitiesProgress() {
   const [data, setData] = useState<WeeklyChallengeResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-
-    const load = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
+  const fetchData = React.useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/rewards/weekly-activities?userId=${userId}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok) {
+        setData(json);
       }
-
-      try {
-        const res = await fetch(`/api/rewards/weekly-activities?userId=${userId}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (active && res.ok) {
-          setData(json);
-        }
-      } catch {
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+    } catch {
+    } finally {
+      setLoading(false);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Refetch when user returns to this tab/page (handles browser back button & tab switching)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchData]);
 
   const items = useMemo(() => {
     const activities = data?.activities;
@@ -66,6 +72,9 @@ export function WeeklyActivitiesProgress() {
   }, [data]);
 
   const progressPercent = data ? Math.min(100, Math.round((data.completed / data.total) * 100)) : 0;
+  const completedCount = Number(data?.completed ?? 0);
+  const totalCount = Number(data?.total ?? 5);
+  const remainingCount = Math.max(0, Number(data?.remaining ?? Math.max(0, totalCount - completedCount)));
 
   if (!userId) return null;
 
@@ -78,24 +87,47 @@ export function WeeklyActivitiesProgress() {
             <div className="inline-flex rounded-full bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0f766e]">
               Weekly 5 Activities Challenge
             </div>
-            <h2 className="mt-3 text-2xl font-bold text-[#134e4a]">Finish 5 activities to enter the winner draw</h2>
+            <h2 className="mt-3 text-2xl font-bold text-[#134e4a]">Finish any 5 activities this week</h2>
             <p className="mt-2 text-sm text-[#0f766e] md:text-base">
               {loading
                 ? 'Checking your weekly challenge progress...'
                 : data?.qualifiedForDraw
-                ? 'Amazing! You completed all 5 activities and got your leaderboard star.'
-                : `You have ${data?.remaining ?? 5} activit${(data?.remaining ?? 5) === 1 ? 'y' : 'ies'} left before getting your leaderboard star.`}
+                ? 'Amazing! You completed all 5 activities this week.'
+                : `You have ${data?.remaining ?? 5} activit${(data?.remaining ?? 5) === 1 ? 'y' : 'ies'} left to complete your weekly challenge.`}
             </p>
           </div>
-          <Link
-            href="/leaderboard"
-            className="inline-flex items-center justify-center rounded-xl bg-[#14b8a6] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0d9488]"
-          >
-            View Leaderboard
-          </Link>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fetchData()}
+              disabled={loading}
+              className="inline-flex items-center justify-center rounded-xl border border-[#14b8a6] px-3 py-3 text-sm font-bold text-[#14b8a6] transition hover:bg-[#ecfdf5] disabled:opacity-50"
+              title="Refresh progress"
+            >
+              {loading ? '...' : '↻'}
+            </button>
+            <Link
+              href="/leaderboard"
+              className="inline-flex items-center justify-center rounded-xl bg-[#14b8a6] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0d9488]"
+            >
+              View Leaderboard
+            </Link>
+          </div>
         </div>
 
         <div className="mt-5 rounded-2xl border border-[#99f6e4] bg-white p-4">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Completed This Week</p>
+              <p className="mt-1 text-3xl font-black text-emerald-800">{loading ? '...' : completedCount}</p>
+              <p className="text-xs font-semibold text-emerald-700">Target: {totalCount} activities</p>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Activities Left</p>
+              <p className="mt-1 text-3xl font-black text-amber-800">{loading ? '...' : remainingCount}</p>
+              <p className="text-xs font-semibold text-amber-700">Complete any activities to reach your weekly 5</p>
+            </div>
+          </div>
+
           <div className="mb-3 flex items-center justify-between text-sm font-semibold text-[#115e59]">
             <span>{loading ? 'Loading progress...' : `${data?.completed ?? 0}/${data?.total ?? 5} activities done`}</span>
             <span>{progressPercent}%</span>
@@ -103,26 +135,29 @@ export function WeeklyActivitiesProgress() {
           <div className="h-4 w-full overflow-hidden rounded-full bg-[#ccfbf1]">
             <div className="h-full bg-gradient-to-r from-[#14b8a6] to-[#0d9488] transition-all duration-500" style={{ width: `${progressPercent}%` }} />
           </div>
+          <p className="mt-3 text-xs font-semibold text-[#0f766e]">
+            Any activities completed during the week count. You can use any mix (for example 5 quizzes, or 3 games + 2 quizzes).
+          </p>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {
             const Icon = item.icon;
             const count = Number(item.count || 0);
-            const completed = count > 0;
+            const isTotalCard = item.key === 'total';
+            const reachedTarget = Boolean(data?.qualifiedForDraw);
             const inner = (
-              <div className={`rounded-2xl border px-4 py-4 transition ${completed ? 'border-emerald-200 bg-emerald-50' : 'border-[#e5c9a3]/30 bg-white hover:border-[#14b8a6]/40'}`}>
+              <div className={`rounded-2xl border px-4 py-4 transition ${isTotalCard ? (reachedTarget ? 'border-emerald-200 bg-emerald-50' : 'border-[#14b8a6]/30 bg-[#ecfdf5]') : 'border-[#e5c9a3]/30 bg-white hover:border-[#14b8a6]/40'}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${completed ? 'bg-emerald-600 text-white' : 'bg-[#f9f0e6] text-[#6a422d]'}`}>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isTotalCard ? (reachedTarget ? 'bg-emerald-600 text-white' : 'bg-[#14b8a6] text-white') : 'bg-[#f9f0e6] text-[#6a422d]'}`}>
                     <Icon size={18} />
                   </div>
                   <div className="flex-1">
                     <p className="font-bold text-[#6a422d]">{item.label}</p>
-                    <p className={`text-xs font-semibold ${completed ? 'text-emerald-700' : 'text-[#a1633a]'}`}>
-                      {item.key === 'total' ? `${Math.min(5, count)}/5 done` : `${count} activit${count === 1 ? 'y' : 'ies'}`}
+                    <p className={`text-xs font-semibold ${isTotalCard ? (reachedTarget ? 'text-emerald-700' : 'text-[#0f766e]') : 'text-[#a1633a]'}`}>
+                      {item.key === 'total' ? `${Math.min(5, count)}/5 counted this week` : `${count} completed this week`}
                     </p>
                   </div>
-                  {completed ? <CheckCircle2 size={20} className="text-emerald-600" /> : <Circle size={20} className="text-[#cbd5e1]" />}
                 </div>
               </div>
             );

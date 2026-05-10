@@ -65,19 +65,13 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
       if (storyError) throw storyError;
       setStory(storyData);
 
-      const runQuery = async (orderColumn: 'submitted_at' | 'created_at') => {
-        return await supabase
-          .from('recordings')
-          .select('*')
-          .eq('story_id', storyId)
-          .eq('status', 'approved')
-          .order(orderColumn, { ascending: false });
-      };
-      let { data: recordingsData, error: recordingsError } = await runQuery('submitted_at');
-      if (recordingsError && recordingsError.message?.includes('submitted_at')) {
-        ({ data: recordingsData, error: recordingsError } = await runQuery('created_at'));
+      const recordingsRes = await fetch(`/api/stories/${storyId}/recordings`, { cache: 'no-store' });
+      if (!recordingsRes.ok) {
+        throw new Error('Failed to load story recordings');
       }
-      if (!recordingsError && recordingsData) setRecordings(recordingsData);
+
+      const recordingsPayload = await recordingsRes.json();
+      setRecordings(recordingsPayload.recordings || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -136,6 +130,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
   const quizScore = storyQuiz && quizSubmitted
     ? storyQuiz.quiz.reduce((acc, q, idx) => acc + (selectedAnswers[idx] === q.correct_answer ? 1 : 0), 0) * storyQuiz.points_per_question
     : 0;
+  const featuredRecording = recordings.find((recording) => recording.audio_url);
 
   if (loading) {
     return (
@@ -183,37 +178,42 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-[#e5c9a3]/30">
+          <div className={`grid border-b border-[#e5c9a3]/30 ${storyQuiz ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <button
               onClick={() => setActiveTab('read')}
-              className={`flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 transition ${
+              className={`py-3 px-2 sm:py-4 sm:px-4 font-bold text-[11px] sm:text-sm leading-tight flex items-center justify-center gap-1 sm:gap-2 transition ${
                 activeTab === 'read'
                   ? 'text-[#6366f1] border-b-3 border-[#6366f1] bg-[#eef2ff]/50'
                   : 'text-[#a1633a] hover:bg-[#f9f0e6]'
               }`}
             >
-              <BookOpen size={18} /> Read & Listen
+              <BookOpen size={16} />
+              <span className="sm:hidden">Read</span>
+              <span className="hidden sm:inline">Read &amp; Listen</span>
             </button>
             <button
               onClick={() => setActiveTab('record')}
-              className={`flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 transition ${
+              className={`py-3 px-2 sm:py-4 sm:px-4 font-bold text-[11px] sm:text-sm leading-tight flex items-center justify-center gap-1 sm:gap-2 transition ${
                 activeTab === 'record'
                   ? 'text-[#ff4757] border-b-3 border-[#ff4757] bg-[#fff5f5]/50'
                   : 'text-[#a1633a] hover:bg-[#f9f0e6]'
               }`}
             >
-              <Mic size={18} /> Record & Earn Points
+              <Mic size={16} />
+              <span className="sm:hidden">Record</span>
+              <span className="hidden sm:inline">Record &amp; Earn Points</span>
             </button>
             {storyQuiz && (
               <button
                 onClick={() => setActiveTab('quiz')}
-                className={`flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 transition ${
+                className={`py-3 px-2 sm:py-4 sm:px-4 font-bold text-[11px] sm:text-sm leading-tight flex items-center justify-center gap-1 sm:gap-2 transition ${
                   activeTab === 'quiz'
                     ? 'text-[#14b8a6] border-b-3 border-[#14b8a6] bg-[#f0fdfa]/50'
                     : 'text-[#a1633a] hover:bg-[#f9f0e6]'
                 }`}
               >
-                🧠 Quiz
+                <span>🧠</span>
+                <span>Quiz</span>
               </button>
             )}
           </div>
@@ -221,6 +221,21 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
           {/* Read & Listen Tab */}
           {activeTab === 'read' && (
             <div className="p-8 md:p-12">
+              {featuredRecording && (
+                <div className="mb-8 rounded-2xl border border-[#14b8a6]/20 bg-gradient-to-r from-[#f0fdfa] to-[#eef2ff] p-5 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold uppercase tracking-[0.2em] text-[#14b8a6]">Audiobook</div>
+                      <h3 className="text-xl font-bold text-[#6a422d]">Listen to this story</h3>
+                    </div>
+                    <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#a1633a] shadow-sm">
+                      {featuredRecording.child_name?.trim() || 'Community narration'}
+                    </div>
+                  </div>
+                  <audio controls preload="none" src={featuredRecording.audio_url} className="w-full" />
+                </div>
+              )}
+
               {/* Audio Controls */}
               <div className="flex items-center gap-3 mb-8 p-4 bg-[#eef2ff] rounded-xl border border-[#8b5cf6]/10">
                 <button onClick={handlePlay} className={`rounded-full w-12 h-12 flex items-center justify-center transition-all shadow-md ${
@@ -234,7 +249,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
                   </button>
                 )}
                 <span className="text-sm font-semibold text-[#6366f1]">
-                  {isPlaying ? 'Listening...' : isPaused ? 'Paused' : 'Listen to Story'}
+                  {isPlaying ? 'Listening...' : isPaused ? 'Paused' : featuredRecording ? 'Use browser voice instead' : 'Listen to Story'}
                 </span>
               </div>
 
@@ -409,7 +424,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
                 {recordings.map((rec) => (
                   <div key={rec.id} className="bg-white p-4 rounded-xl shadow-sm border border-[#e5c9a3]/20">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold text-[#6a422d]">Kid Reciter</span>
+                      <span className="font-semibold text-[#6a422d]">{rec.child_name?.trim() || 'Kid Reciter'}</span>
                       {(() => {
                         const seconds = rec.duration ?? rec.duration_seconds ?? 0;
                         return (
@@ -419,7 +434,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
                         );
                       })()}
                     </div>
-                    <audio controls src={supabase.storage.from('story-recordings').getPublicUrl(rec.audio_path).data.publicUrl} className="w-full h-8" />
+                    {rec.audio_url && <audio controls preload="none" src={rec.audio_url} className="w-full h-8" />}
                   </div>
                 ))}
               </div>

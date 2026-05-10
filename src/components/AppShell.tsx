@@ -8,11 +8,11 @@ import { AnnouncementBar } from '@/components/AnnouncementBar';
 import { PromoSlideshow } from '@/components/PromoSlideshow';
 import { ScrollingTicker } from '@/components/ScrollingTicker';
 import { VisitorCounter } from '@/components/VisitorCounter';
+import { SiteAnnouncementPopup } from '@/components/SiteAnnouncementPopup';
 import { useAuth } from '@/lib/auth-context';
 import { isTestModeEmail } from '@/lib/test-mode';
+import { PageTransition } from '@/components/PageTransition';
 
-const WinnerPopup = dynamic(() => import('@/components/WinnerPopup').then(m => m.WinnerPopup), { ssr: false });
-const NewsletterPopup = dynamic(() => import('@/components/NewsletterPopup').then(m => m.NewsletterPopup), { ssr: false });
 const FeedbackBanner = dynamic(() => import('@/components/FeedbackBanner').then(m => m.FeedbackBanner), { ssr: false });
 const Navbar = dynamic(() => import('./Navbar').then(m => m.Navbar), { ssr: false });
 
@@ -70,11 +70,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <ScrollingTicker />
       <PromoSlideshow />
       <FeedbackBanner />
-      <main className="app-shell-main min-h-screen pb-16 sm:pb-20">
+      <SiteAnnouncementPopup />
+      <main className="app-shell-main min-h-screen pb-16 sm:pb-20 pattern-islamic">
         <div className="app-shell-backdrop" aria-hidden="true" />
-        <div className="app-shell-content fade-in">{children}</div>
+        <div className="app-shell-grid" aria-hidden="true" />
+        <div className="app-shell-aurora app-shell-aurora-left" aria-hidden="true" />
+        <div className="app-shell-aurora app-shell-aurora-right" aria-hidden="true" />
+        <div className="app-shell-aurora app-shell-aurora-bottom" aria-hidden="true" />
+        <div className="app-shell-content">
+          <div className="route-frame">
+            <PageTransition routeKey={pathname || '/'}>{children}</PageTransition>
+          </div>
+        </div>
       </main>
-      <footer className="bg-gradient-to-r from-[#0d9488] to-[#115e59] text-white p-8 text-center text-sm mt-12 rounded-t-3xl">
+      <footer className="mx-3 sm:mx-5 md:mx-8 bg-gradient-to-r from-[#0d9488] via-[#0f766e] to-[#115e59] text-white p-8 text-center text-sm mt-12 rounded-t-3xl shadow-[0_-10px_28px_rgba(19,78,74,0.24)] border border-white/15">
         <p className="font-bold text-lg mb-2">&copy; 2025 Kids Zone - Islamic Learning Platform</p>
         <p className="opacity-80">A fun, safe, and educational Islamic learning platform for children aged 5-14</p>
         <div className="mt-6 bg-white/10 inline-block px-6 py-3 rounded-2xl">
@@ -82,8 +91,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
       <MobileBottomNav />
-      <NewsletterPopup />
-      <WinnerPopup />
     </>
   );
 }

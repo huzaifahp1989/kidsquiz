@@ -42,11 +42,11 @@ async function getWeeklyActivitySummary(userId: string): Promise<WeeklyActivityS
       .gte('completed_at', weekStartIso)
       .lt('completed_at', weekEndIso),
     supabaseAdmin
-      .from('game_activity_logs')
+      .from('game_progress')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('played_at', weekStartIso)
-      .lt('played_at', weekEndIso),
+      .eq('uid', userId)
+      .gte('playedat', weekStartIso)
+      .lt('playedat', weekEndIso),
     supabaseAdmin
       .from('pledges')
       .select('*', { count: 'exact', head: true })
@@ -57,8 +57,8 @@ async function getWeeklyActivitySummary(userId: string): Promise<WeeklyActivityS
       .from('recordings')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .gte('created_at', weekStartIso)
-      .lt('created_at', weekEndIso),
+      .gte('submitted_at', weekStartIso)
+      .lt('submitted_at', weekEndIso),
   ]);
 
   if (quizRes.error) throw new Error(quizRes.error.message);

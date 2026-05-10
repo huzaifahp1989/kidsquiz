@@ -123,6 +123,7 @@ async function ensureFallbackDailyQuizId(date: string, questionIds: string[]): P
 async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const dailyLimit = 100;
+  const weeklyLimit = 400;
 
   let finalPointsAwarded = 0;
   let reason: string | null = null;
@@ -142,10 +143,11 @@ async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
     if (currentTodayPoints + pointsToAward > dailyLimit) {
       pointsToAward = Math.max(0, dailyLimit - currentTodayPoints);
     }
+    pointsToAward = Math.max(0, Math.min(pointsToAward, weeklyLimit - Number(userPointsRow.weekly_points || 0)));
 
     if (pointsToAward > 0) {
       const newTotal = (userPointsRow.total_points || 0) + pointsToAward;
-      const newWeekly = (userPointsRow.weekly_points || 0) + pointsToAward;
+      const newWeekly = Math.min(weeklyLimit, (userPointsRow.weekly_points || 0) + pointsToAward);
       const newMonthly = (userPointsRow.monthly_points || 0) + pointsToAward;
       const newToday = currentTodayPoints + pointsToAward;
 
@@ -174,7 +176,7 @@ async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
       reason = 'daily_limit_reached';
     }
   } else if (!userPointsRow) {
-    const pointsToAward = Math.min(totalPoints, dailyLimit);
+    const pointsToAward = Math.min(totalPoints, dailyLimit, weeklyLimit);
     const { error: insertError } = await supabaseAdmin
       .from('users_points')
       .insert({

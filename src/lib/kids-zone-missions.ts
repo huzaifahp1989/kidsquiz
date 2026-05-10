@@ -99,11 +99,11 @@ export async function getDailyMissionSnapshot(userId: string): Promise<DailyMiss
       .gte('completed_at', startIso)
       .lte('completed_at', endIso),
     supabaseAdmin
-      .from('game_activity_logs')
+      .from('game_progress')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('played_at', startIso)
-      .lte('played_at', endIso),
+      .eq('uid', userId)
+      .gte('playedat', startIso)
+      .lte('playedat', endIso),
     supabaseAdmin
       .from('users_points')
       .select('today_points')

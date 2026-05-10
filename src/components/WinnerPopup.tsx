@@ -36,20 +36,6 @@ export function WinnerPopup() {
           <p className="font-bold text-slate-600 uppercase tracking-wider text-xs">
             Weekly Winners{today ? ` • ${today}` : ''}
           </p>
-          <div className="mt-4 space-y-2">
-            <div className="bg-white/80 rounded-lg p-3 font-bold text-slate-900">
-              🥇 Amina Farzan<span className="block text-xs font-semibold text-slate-600 mt-1">Madrasah Masjid Al Ansaar</span>
-            </div>
-            <div className="bg-white/80 rounded-lg p-3 font-bold text-slate-900">
-              🥈 Salmaan Musa<span className="block text-xs font-semibold text-slate-600 mt-1">Darul Ihsaan</span>
-            </div>
-            <div className="bg-white/80 rounded-lg p-3 font-bold text-slate-900">
-              🥉 Ahmed Raza Ali
-            </div>
-            <div className="bg-white/80 rounded-lg p-3 font-bold text-slate-900">
-              Muhammad Umar Esat<span className="block text-xs font-semibold text-slate-600 mt-1">Darul Ihsaan</span>
-            </div>
-          </div>
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs sm:text-sm font-semibold text-blue-900">
               ✨ Please keep taking part in more weekly quizzes, games and pledging durood to be chosen for weekly winner

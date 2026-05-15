@@ -133,6 +133,12 @@ export default function LeaderboardClient() {
     return lastPlayedDate === today;
   };
 
+    useEffect(() => {
+      console.log('Leaderboard: Current onlineUserIds:', Array.from(onlineUserIds));
+      if (profile?.uid) {
+        console.log('Leaderboard: Current user uid:', profile.uid, 'Is online?:', onlineUserIds.has(profile.uid));
+      }
+    }, [onlineUserIds, profile?.uid]);
   const leaderboardData = useMemo(() => {
     return entries.map((entry, index) => ({
       rank: index + 1,

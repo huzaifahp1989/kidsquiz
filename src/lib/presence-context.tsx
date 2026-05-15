@@ -27,9 +27,13 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       heartbeatIntervalRef.current = null;
     }
 
-    // Only create a new channel if user is logged in
-    if (!profile?.uid) return;
+      // Only create a new channel if user is logged in
+      if (!profile?.uid) {
+        console.log('PresenceProvider: No profile uid, skipping presence setup');
+        return;
+      }
 
+      console.log('PresenceProvider: Setting up presence for user:', profile.uid, profile.name);
     const presenceChannel = supabase.channel('global-presence', { config: { broadcast: { self: true } } });
     presenceChannelRef.current = presenceChannel;
 
@@ -43,21 +47,26 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         }
       });
       
+        console.log('PresenceProvider: Active users updated:', Array.from(activeUsers));
       setOnlineUserIds(activeUsers);
     }).subscribe(async (status) => {
+        console.log('PresenceProvider: Channel status:', status);
       if (status === 'SUBSCRIBED') {
         // Track presence immediately
+          console.log('PresenceProvider: Tracking presence for:', profile.uid);
         await presenceChannel.track({ uid: profile.uid, name: profile.name, timestamp: Date.now() });
         
         // Set up heartbeat to keep presence active
         if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
         heartbeatIntervalRef.current = setInterval(async () => {
+            console.log('PresenceProvider: Heartbeat for:', profile.uid);
           await presenceChannel.track({ uid: profile.uid, name: profile.name, timestamp: Date.now() });
         }, 30000); // Update presence every 30 seconds
       }
     });
 
     return () => {
+        console.log('PresenceProvider: Cleaning up presence channel');
       presenceChannel.unsubscribe();
     };
   }, [profile?.uid, profile?.name]);

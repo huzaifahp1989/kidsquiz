@@ -18,6 +18,7 @@ type Entry = {
   lastPlayedDate?: string | null;
   winnerTick?: boolean;
   weeklyChallengeDone?: boolean;
+  isOnline?: boolean;
 };
 
 const POLICY_POPUP_KEY = 'leaderboard_policy_popup_v1';
@@ -123,6 +124,7 @@ export default function LeaderboardClient() {
       lastPlayedDate: entry.lastPlayedDate ?? null,
       winnerTick: entry.winnerTick ?? false,
       weeklyChallengeDone: entry.weeklyChallengeDone ?? false,
+      isOnline: isUserOnlineToday(entry.lastPlayedDate),
     }));
   }, [entries]);
 
@@ -136,6 +138,12 @@ export default function LeaderboardClient() {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const mon = months[mm - 1] || m[2];
     return `${dd} ${mon} ${y}`;
+  };
+
+  const isUserOnlineToday = (lastPlayedDate: string | null | undefined) => {
+    if (!lastPlayedDate) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return lastPlayedDate === today;
   };
 
   const getRankIcon = (rank: number) => {
@@ -248,12 +256,18 @@ export default function LeaderboardClient() {
                   key={entry.rank}
                   className={`flex items-center gap-4 p-4 transition hover:bg-[#f9f0e6]/50 ${entry.uid === profile?.uid ? 'bg-[#f0fdfa]/50' : ''}`}
                 >
-                  <div className="w-10 text-center font-bold text-[#a1633a]">#{entry.rank}</div>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] flex items-center justify-center text-xl">
-                    🌍
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] flex items-center justify-center text-xl">
+                      🌍
+                    </div>
+                    {entry.isOnline && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-md" aria-label="Online now"></div>
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="font-bold text-[#6a422d] inline-flex items-center gap-2">
+                      <span>{entry.username}</span>
+                      {entry.isOnline && <span className="text-[10px] font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full">online</span>}6a422d] inline-flex items-center gap-2">
                       <span>{entry.username}</span>
                       {entry.winnerTick ? <span aria-label="Winner" className="text-emerald-600">✓</span> : null}
                       {entry.weeklyChallengeDone ? <span aria-label="Weekly challenge complete" className="text-amber-500">⭐</span> : null}

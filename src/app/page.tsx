@@ -90,18 +90,18 @@ export default function Home() {
           
           <div className="relative px-6 py-10 md:px-10 md:py-12">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="space-y-4">
+              <div className="min-w-0 flex-1 space-y-4">
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#f0fdfa] rounded-full border border-[#14b8a6]/20">
                   <Sparkles size={16} className="text-[#14b8a6]" />
                   <span className="text-sm font-semibold text-[#0d9488]">Assalamu Alaikum!</span>
                 </div>
                 
-                <h1 className="text-3xl md:text-5xl font-bold text-[#6a422d]">
+                <h1 className="break-words text-3xl md:text-5xl font-bold text-[#6a422d]">
                   Welcome back,{' '}
                   <span className="text-gradient-warm">{user.username}</span>
                 </h1>
                 
-                <p className="text-[#a1633a] text-lg max-w-lg">
+                <p className="max-w-lg break-words text-lg text-[#a1633a]">
                   Continue your Islamic learning journey. Every step brings you closer to knowledge and rewards.
                 </p>
                 
@@ -192,12 +192,12 @@ export default function Home() {
 
         <section className="feature-tile rounded-3xl border-teal-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50 p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="max-w-2xl">
+            <div className="min-w-0 max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full bg-teal-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-teal-800">
                 <Sparkles size={14} /> Monthly Featured Quiz
               </div>
-              <h2 className="mt-3 text-2xl md:text-3xl font-black text-[#134e4a]">Masjid Al-Aqsa Quiz Competition</h2>
-              <p className="mt-2 text-sm md:text-base leading-6 text-[#0f766e]">
+              <h2 className="mt-3 break-words text-2xl font-black text-[#134e4a] md:text-3xl">Masjid Al-Aqsa Quiz Competition</h2>
+              <p className="mt-2 break-words text-sm leading-6 text-[#0f766e] md:text-base">
                 This month&apos;s featured contest is a written Islamic quiz on Masjid Al-Aqsa. Submit once, wait for admin review, and winners will receive cash prizes at the end of the month.
               </p>
             </div>
@@ -216,13 +216,13 @@ export default function Home() {
             <Link
               key={idx}
               href={action.href}
-              className={`${action.bgColor} feature-tile group rounded-2xl p-5`}
+              className={`${action.bgColor} feature-tile group flex h-full min-w-0 flex-col rounded-2xl p-5`}
             >
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
                 <action.icon size={24} className="text-white" />
               </div>
-              <h3 className="mt-4 font-bold text-[#6a422d]">{action.title}</h3>
-              <p className="text-sm text-[#a1633a]">{action.description}</p>
+              <h3 className="mt-4 break-words font-bold leading-snug text-[#6a422d]">{action.title}</h3>
+              <p className="break-words text-sm text-[#a1633a]">{action.description}</p>
             </Link>
           ))}
         </section>

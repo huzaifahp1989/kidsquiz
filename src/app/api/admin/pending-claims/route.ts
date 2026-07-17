@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
+import { isAdminRequest } from '@/lib/admin-auth';
 
 // GET  /api/admin/pending-claims          — list all claims (optionally filtered by status)
 // POST /api/admin/pending-claims          — approve or reject a claim
 
 export async function GET(req: Request) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || 'pending';
 
@@ -42,6 +47,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { claimId, action } = body || {};
@@ -72,12 +81,18 @@ export async function POST(req: Request) {
     }
 
     // Update the claim status first
-    const { error: updateError } = await supabaseAdmin
+    const { data: updatedClaim, error: updateError } = await supabaseAdmin
       .from('pending_reward_claims')
       .update({ status: action === 'approve' ? 'approved' : 'rejected', reviewed_at: new Date().toISOString() })
-      .eq('id', claimId);
+      .eq('id', claimId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
 
     if (updateError) throw updateError;
+    if (!updatedClaim) {
+      return NextResponse.json({ error: 'Claim was already reviewed.' }, { status: 409 });
+    }
 
     let pointsAwarded = 0;
     if (action === 'approve') {
@@ -89,6 +104,14 @@ export async function POST(req: Request) {
           successMessage: `+${claim.points_requested} points approved for ${claim.claim_label}!`,
         }
       );
+      if (!result.success) {
+        await supabaseAdmin
+          .from('pending_reward_claims')
+          .update({ status: 'pending', reviewed_at: null })
+          .eq('id', claimId)
+          .eq('status', 'approved');
+        return NextResponse.json({ error: result.message }, { status: 500 });
+      }
       pointsAwarded = result.pointsAwarded;
     }
 

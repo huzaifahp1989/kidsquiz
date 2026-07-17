@@ -22,6 +22,11 @@ type ServerAwardOptions = {
   successMessage?: string;
 };
 
+function numericPoints(value: unknown): number {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
 export async function awardPointsWithDailyCapByUserId(
   userId: string,
   requestedPoints: number,
@@ -74,7 +79,7 @@ export async function awardPointsWithDailyCapByUserId(
       .maybeSingle(),
     supabaseAdmin
       .from('users')
-      .select('points, weeklypoints, monthlypoints')
+      .select('points, weeklypoints, monthlypoints, badges')
       .eq('uid', userId)
       .maybeSingle(),
   ]);
@@ -114,19 +119,22 @@ export async function awardPointsWithDailyCapByUserId(
   const existingRow = pointsRowRes.data;
   const userRow = userRowRes.data;
 
-  const baseTotal = Number(existingRow?.total_points ?? userRow?.points ?? 0);
-  const baseWeekly = Number(existingRow?.weekly_points ?? userRow?.weeklypoints ?? 0);
-  const baseMonthly = Number(existingRow?.monthly_points ?? userRow?.monthlypoints ?? 0);
+  // Never let a stale row in either table lower an already-earned balance.
+  const baseTotal = Math.max(numericPoints(existingRow?.total_points), numericPoints(userRow?.points));
+  const baseWeekly = Math.max(numericPoints(existingRow?.weekly_points), numericPoints(userRow?.weeklypoints));
+  const baseMonthly = Math.max(numericPoints(existingRow?.monthly_points), numericPoints(userRow?.monthlypoints));
+  const baseBadges = Math.max(numericPoints(existingRow?.badges), numericPoints(userRow?.badges));
+  const baseLevel = Math.max(1, numericPoints(existingRow?.level));
   const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr;
-  const currentTodayPoints = isNewDay ? 0 : Number(existingRow?.today_points ?? 0);
+  const currentTodayPoints = isNewDay ? 0 : numericPoints(existingRow?.today_points);
   const cappedByDaily = countTowardDailyLimit
     ? Math.max(0, Math.min(requestedPoints, dailyLimit - currentTodayPoints))
     : requestedPoints;
   const pointsAwarded = Math.max(0, Math.min(cappedByDaily, weeklyLimit - baseWeekly));
 
   if (pointsAwarded <= 0) {
-    const badges = Math.floor(baseTotal / 100);
-    const level = 1 + Math.floor(badges / 5);
+    const badges = Math.max(baseBadges, Math.floor(baseTotal / 100));
+    const level = Math.max(baseLevel, 1 + Math.floor(badges / 5));
     return {
       success: true,
       reason: 'daily_limit_reached',
@@ -146,8 +154,8 @@ export async function awardPointsWithDailyCapByUserId(
   const weeklyPoints = Math.min(weeklyLimit, baseWeekly + pointsAwarded);
   const monthlyPoints = baseMonthly + pointsAwarded;
   const todayPoints = countTowardDailyLimit ? currentTodayPoints + pointsAwarded : currentTodayPoints;
-  const badges = Math.floor(totalPoints / 100);
-  const level = 1 + Math.floor(badges / 5);
+  const badges = Math.max(baseBadges, Math.floor(totalPoints / 100));
+  const level = Math.max(baseLevel, 1 + Math.floor(badges / 5));
 
   const { error: upsertError } = await supabaseAdmin
     .from('users_points')
@@ -173,19 +181,24 @@ export async function awardPointsWithDailyCapByUserId(
       monthlyPoints: baseMonthly,
       todayPoints: currentTodayPoints,
       dailyLimit,
-      badges: Math.floor(baseTotal / 100),
-      level: 1 + Math.floor(Math.floor(baseTotal / 100) / 5),
+      badges: baseBadges,
+      level: baseLevel,
     };
   }
 
-  await supabaseAdmin
+  const { error: userSyncError } = await supabaseAdmin
     .from('users')
     .update({
       points: totalPoints,
       weeklypoints: weeklyPoints,
       monthlypoints: monthlyPoints,
+      badges,
     })
     .eq('uid', userId);
+
+  if (userSyncError) {
+    console.warn('[awardPointsWithDailyCapByUserId] users sync failed:', userSyncError.message);
+  }
 
   return {
     success: true,

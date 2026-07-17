@@ -5,6 +5,7 @@ import { quizzes } from '@/data/quizzes';
 import { filterQuestionsByTopic, getTopicQuizQuestions } from '@/lib/quiz-topics';
 import { isTestModeUserId } from '@/lib/test-mode-server';
 import { getAuthenticatedRequestUser } from '@/lib/request-auth';
+import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 const MAX_DAILY_QUIZ_ATTEMPTS = 2;
 
@@ -119,94 +120,6 @@ async function ensureFallbackDailyQuizId(date: string, questionIds: string[]): P
   }
 
   return reread.id;
-}
-
-async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const dailyLimit = 100;
-  const weeklyLimit = 400;
-
-  let finalPointsAwarded = 0;
-  let reason: string | null = null;
-  let currentTodayPoints = 0;
-
-  const { data: userPointsRow, error: pointsFetchError } = await supabaseAdmin
-    .from('users_points')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (!pointsFetchError && userPointsRow) {
-    const isNewDay = userPointsRow.last_earned_date !== todayStr;
-    currentTodayPoints = isNewDay ? 0 : (userPointsRow.today_points || 0);
-
-    let pointsToAward = totalPoints;
-    if (currentTodayPoints + pointsToAward > dailyLimit) {
-      pointsToAward = Math.max(0, dailyLimit - currentTodayPoints);
-    }
-    pointsToAward = Math.max(0, Math.min(pointsToAward, weeklyLimit - Number(userPointsRow.weekly_points || 0)));
-
-    if (pointsToAward > 0) {
-      const newTotal = (userPointsRow.total_points || 0) + pointsToAward;
-      const newWeekly = Math.min(weeklyLimit, (userPointsRow.weekly_points || 0) + pointsToAward);
-      const newMonthly = (userPointsRow.monthly_points || 0) + pointsToAward;
-      const newToday = currentTodayPoints + pointsToAward;
-
-      const { error: updateError } = await supabaseAdmin
-        .from('users_points')
-        .update({
-          total_points: newTotal,
-          weekly_points: newWeekly,
-          monthly_points: newMonthly,
-          today_points: newToday,
-          last_earned_date: todayStr,
-        })
-        .eq('user_id', userId);
-
-      if (!updateError) {
-        finalPointsAwarded = pointsToAward;
-        await supabaseAdmin
-          .from('users')
-          .update({ points: newTotal, weeklypoints: newWeekly, monthlypoints: newMonthly })
-          .eq('uid', userId);
-      } else {
-        console.error('Failed to update points:', updateError);
-        reason = 'update_failed';
-      }
-    } else {
-      reason = 'daily_limit_reached';
-    }
-  } else if (!userPointsRow) {
-    const pointsToAward = Math.min(totalPoints, dailyLimit, weeklyLimit);
-    const { error: insertError } = await supabaseAdmin
-      .from('users_points')
-      .insert({
-        user_id: userId,
-        total_points: pointsToAward,
-        weekly_points: pointsToAward,
-        monthly_points: pointsToAward,
-        today_points: pointsToAward,
-        last_earned_date: todayStr,
-      });
-
-    if (!insertError) {
-      finalPointsAwarded = pointsToAward;
-      await supabaseAdmin
-        .from('users')
-        .update({ points: pointsToAward, weeklypoints: pointsToAward, monthlypoints: pointsToAward })
-        .eq('uid', userId);
-    } else {
-      console.error('Failed to insert points:', insertError);
-      reason = 'insert_failed';
-    }
-  }
-
-  return {
-    pointsAwarded: finalPointsAwarded,
-    reason,
-    todayPoints: currentTodayPoints,
-    dailyLimit,
-  };
 }
 
 function successNoPoints(score: number, maxScore: number, totalPossiblePoints: number, flags?: Record<string, unknown>) {
@@ -332,7 +245,7 @@ export async function POST(req: Request) {
 
       const awardResult = isTestMode
         ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
+        : await awardPointsWithDailyCapByUserId(userId, totalPoints);
 
       const finalPointsAwarded = awardResult.pointsAwarded;
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
@@ -425,7 +338,7 @@ export async function POST(req: Request) {
 
       const awardResult = isTestMode
         ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
+        : await awardPointsWithDailyCapByUserId(userId, totalPoints);
 
       const finalPointsAwarded = awardResult.pointsAwarded;
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
@@ -548,7 +461,7 @@ export async function POST(req: Request) {
 
     const awardResult = isTestMode
       ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-      : await awardPointsWithDailyCap(userId, totalPoints);
+      : await awardPointsWithDailyCapByUserId(userId, totalPoints);
 
     const finalPointsAwarded = awardResult.pointsAwarded;
     const attemptSummary = await getTodaysQuizAttemptSummary(userId);

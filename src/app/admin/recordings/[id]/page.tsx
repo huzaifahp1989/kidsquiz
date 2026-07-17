@@ -151,7 +151,7 @@ export default function AdminRecordingDetail({ params }: { params: Promise<{ id:
     try {
       const res = await fetch(`/api/admin/recordings/${id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-auth': 'true' },
         body: JSON.stringify({
           points,
           feedback,

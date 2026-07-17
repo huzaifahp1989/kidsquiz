@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAuthenticatedRequestUser } from '@/lib/request-auth';
+import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 const POINTS_PER_RECORDING = 30;
-const WEEKLY_POINTS_LIMIT = 400;
 
 export async function POST(req: Request) {
   try {
@@ -36,30 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, alreadyRecorded: true, pointsAwarded: 0 });
     }
 
-    const { data: currentPointsRow, error: pointsFetchError } = await supabaseAdmin
-      .from('users_points')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (pointsFetchError && pointsFetchError.code !== 'PGRST116') {
-      throw pointsFetchError;
-    }
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayPoints = currentPointsRow?.last_earned_date === todayStr ? Number(currentPointsRow?.today_points || 0) : 0;
-    const dailyLimit = 100;
-    const weeklyRemaining = Math.max(0, WEEKLY_POINTS_LIMIT - Number(currentPointsRow?.weekly_points || 0));
-    const pointsToAward = Math.max(0, Math.min(POINTS_PER_RECORDING, dailyLimit - todayPoints, weeklyRemaining));
-
-    const totalPoints = Number(currentPointsRow?.total_points || 0) + pointsToAward;
-    const weeklyPoints = Math.min(WEEKLY_POINTS_LIMIT, Number(currentPointsRow?.weekly_points || 0) + pointsToAward);
-    const monthlyPoints = Number(currentPointsRow?.monthly_points || 0) + pointsToAward;
-    const updatedTodayPoints = todayPoints + pointsToAward;
-    const badges = Math.floor(totalPoints / 100);
-    const level = 1 + Math.floor(badges / 5);
-
-    const { error: recordingError } = await supabaseAdmin
+    const { data: recording, error: recordingError } = await supabaseAdmin
       .from('recordings')
       .insert({
         user_id: userId,
@@ -67,48 +44,30 @@ export async function POST(req: Request) {
         audio_path: `external/${userId}/${Date.now()}`,
         duration: 0,
         status: 'approved',
-      });
+      })
+      .select('id')
+      .single();
 
     if (recordingError) {
       throw recordingError;
     }
 
-    const { error: pointsUpsertError } = await supabaseAdmin
-      .from('users_points')
-      .upsert({
-        user_id: userId,
-        total_points: totalPoints,
-        weekly_points: weeklyPoints,
-        monthly_points: monthlyPoints,
-        today_points: updatedTodayPoints,
-        last_earned_date: todayStr,
-        badges,
-        level,
-      }, { onConflict: 'user_id' });
+    const awardResult = await awardPointsWithDailyCapByUserId(userId, POINTS_PER_RECORDING, {
+      successMessage: `Story recording completed. +${POINTS_PER_RECORDING} points added.`,
+    });
 
-    if (pointsUpsertError) {
-      throw pointsUpsertError;
-    }
-
-    const { error: userSyncError } = await supabaseAdmin
-      .from('users')
-      .update({
-        points: totalPoints,
-        weeklypoints: weeklyPoints,
-        monthlypoints: monthlyPoints,
-      })
-      .eq('uid', userId);
-
-    if (userSyncError) {
-      throw userSyncError;
+    if (!awardResult.success && awardResult.reason === 'update_failed') {
+      // Let the user retry if the points write failed after recording creation.
+      await supabaseAdmin.from('recordings').delete().eq('id', recording.id);
+      throw new Error(awardResult.message);
     }
 
     return NextResponse.json({
       ok: true,
-      pointsAwarded: pointsToAward,
-      totalPoints,
-      weeklyPoints,
-      monthlyPoints,
+      pointsAwarded: awardResult.pointsAwarded,
+      totalPoints: awardResult.totalPoints,
+      weeklyPoints: awardResult.weeklyPoints,
+      monthlyPoints: awardResult.monthlyPoints,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Unexpected error' }, { status: 500 });

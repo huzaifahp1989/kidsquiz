@@ -6,6 +6,7 @@
 import { supabase } from './supabase'
 import { ensureUserProfile } from './user-profile'
 import { isTestModeEmail } from './test-mode'
+import { maxPoints } from './points-merge'
 
 async function syncUserSnapshot(userId: string, totals: {
   total_points?: number
@@ -198,12 +199,20 @@ export async function awardPoints(
     const dailyLimit = 100
 
     console.log('[awardPoints] Fallback: checking existing row for user:', user.id)
-    // Ensure row exists
-    const { data: existingRow, error: fetchErr } = await supabase
-      .from('users_points')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Ensure row exists — also read users table so we don't award from a
+    // stale/zero users_points base when legacy totals still live on users.
+    const [{ data: existingRow, error: fetchErr }, { data: userTotals }] = await Promise.all([
+      supabase
+        .from('users_points')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('users')
+        .select('points, weeklypoints, monthlypoints, badges')
+        .eq('uid', user.id)
+        .maybeSingle(),
+    ])
 
     console.log('[awardPoints] Fallback: existing row:', { existingRow, fetchErr })
 
@@ -238,14 +247,18 @@ export async function awardPoints(
     const newDailyTotal = countTowardDailyLimit ? todayPoints + pointsToAward : todayPoints
     console.log('[awardPoints] Fallback: daily check:', { isNewDay, todayPoints, newDailyTotal, dailyLimit, pointsToAward, countTowardDailyLimit })
 
-    const total = (existingRow?.total_points ?? 0) + pointsToAward
-    const weekly = (existingRow?.weekly_points ?? 0) + pointsToAward
-    const monthly = (existingRow?.monthly_points ?? 0) + pointsToAward
+    const baseTotal = maxPoints(existingRow?.total_points, userTotals?.points)
+    const baseWeekly = maxPoints(existingRow?.weekly_points, userTotals?.weeklypoints)
+    const baseMonthly = maxPoints(existingRow?.monthly_points, userTotals?.monthlypoints)
+
+    const total = baseTotal + pointsToAward
+    const weekly = baseWeekly + pointsToAward
+    const monthly = baseMonthly + pointsToAward
     
     // Calculate badges/level for response purposes.
     const badges = Math.floor(total / 100)
     const level = 1 + Math.floor(badges / 5)
-    const badgesEarnedNow = badges - Math.floor((existingRow?.total_points ?? 0) / 100)
+    const badgesEarnedNow = badges - Math.floor(baseTotal / 100)
 
     console.log('[awardPoints] Fallback: upserting with:', { user_id: user.id, total, weekly, monthly, today: newDailyTotal, badges, level })
 

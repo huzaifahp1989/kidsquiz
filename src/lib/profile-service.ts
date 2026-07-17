@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { awardPoints } from './points-service';
+import { mergePointsSources } from './points-merge';
 
 export interface KidProfile {
   uid: string;
@@ -25,11 +26,7 @@ export interface KidProfile {
 
 function mapUser(row: any, pointsRow?: any): KidProfile {
   const dailyLimit = 100;
-  const todayPoints = pointsRow?.today_points ?? 0;
-
-  const totalPoints = pointsRow?.total_points ?? row.points ?? 0;
-  const weeklyPoints = pointsRow?.weekly_points ?? row.weeklyPoints ?? row.weeklypoints ?? 0;
-  const monthlyPoints = pointsRow?.monthly_points ?? row.monthlyPoints ?? row.monthlypoints ?? 0;
+  const merged = mergePointsSources(pointsRow, row);
 
   return {
     uid: row.uid,
@@ -39,13 +36,13 @@ function mapUser(row: any, pointsRow?: any): KidProfile {
     madrasahName: row.madrasahName ?? row.madrasahname ?? row.madrasah_name,
     contactNumber: row.contactNumber ?? row.contactnumber ?? row.contact_number,
     role: row.role,
-    points: totalPoints,
-    weeklyPoints,
-    monthlyPoints,
-    todayPoints,
+    points: merged.total,
+    weeklyPoints: merged.weekly,
+    monthlyPoints: merged.monthly,
+    todayPoints: merged.today,
     dailyLimit,
-    badges: row.badges ?? 0,
-    level: row.level ?? 'Beginner',
+    badges: merged.badges,
+    level: merged.level,
     streak: row.streak ?? 0,
     lastStreakUpdate: row.last_streak_update,
     isFlagged: row.is_flagged ?? false,
@@ -112,7 +109,7 @@ export async function createProfile(
         daily_games_played: 0,
         level: 'Beginner',
       }, { onConflict: 'uid', ignoreDuplicates: true })
-      .select('uid,email,name,age,role,points,weeklypoints:weeklyPoints, monthlypoints:monthlyPoints, badges, daily_games_played, level, createdat:createdAt, updatedat:updatedAt')
+      .select('uid,email,name,age,role,points,weeklypoints,monthlypoints,badges,daily_games_played,level,createdat,updatedat')
       .single();
 
     if (error) {

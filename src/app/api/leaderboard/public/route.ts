@@ -157,9 +157,9 @@ export async function GET(req: Request) {
         userMeta.madrasahname,
         userMeta.madrasah_name
       );
-      const totalPoints = Number(row.total_points ?? row.users?.points ?? 0);
-      const rawWeeklyPoints = Number(row.weekly_points ?? row.users?.weeklypoints ?? 0);
-      const rawMonthlyPoints = Number(row.monthly_points ?? row.users?.monthlypoints ?? 0);
+      const totalPoints = Math.max(Number(row.total_points ?? 0), Number(row.users?.points ?? 0));
+      const rawWeeklyPoints = Math.max(Number(row.weekly_points ?? 0), Number(row.users?.weeklypoints ?? 0));
+      const rawMonthlyPoints = Math.max(Number(row.monthly_points ?? 0), Number(row.users?.monthlypoints ?? 0));
       const weeklyPoints = normalizeLeaderboardPoints(rawWeeklyPoints);
       const monthlyPoints = normalizeLeaderboardPoints(rawMonthlyPoints);
       

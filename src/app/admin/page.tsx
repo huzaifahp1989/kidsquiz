@@ -1807,6 +1807,70 @@ export default function AdminPanel() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-emerald-50 border-l-4 border-islamic-green p-6 rounded-lg">
+                <h3 className="font-bold text-islamic-green mb-2">Points Agent</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Diagnose and auto-fix points issues immediately (desync, missing rows, pending grants).
+                </p>
+                <div className="space-y-3">
+                  <Button
+                    variant="success"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/admin/points-agent', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'x-admin-auth': 'true',
+                          },
+                          body: JSON.stringify({ applyManual: true }),
+                        });
+                        const json = await res.json();
+                        if (!res.ok) throw new Error(json.error || 'Failed');
+                        alert(
+                          `${json.message}\n\nFound: ${json.issuesFound}\nFixed: ${json.issuesFixed}\nRemaining errors: ${
+                            (json.issues || []).filter((i: any) => i.severity === 'error').length
+                          }`
+                        );
+                        fetchUsers();
+                      } catch (e: any) {
+                        alert(e?.message || 'Points agent failed');
+                      }
+                    }}
+                  >
+                    Run Points Agent (Fix Now)
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/admin/points-agent', {
+                          headers: { 'x-admin-auth': 'true' },
+                          cache: 'no-store',
+                        });
+                        const json = await res.json();
+                        if (!res.ok) throw new Error(json.error || 'Failed');
+                        const top = (json.issues || [])
+                          .slice(0, 5)
+                          .map((i: any) => `- ${i.code}: ${i.name || i.email || i.userId}`)
+                          .join('\n');
+                        alert(
+                          `Healthy: ${json.healthy}\nUsers checked: ${json.usersChecked}\nIssues: ${
+                            (json.issues || []).length
+                          }\n\n${top || 'No issues found'}`
+                        );
+                      } catch (e: any) {
+                        alert(e?.message || 'Diagnosis failed');
+                      }
+                    }}
+                  >
+                    Diagnose Only
+                  </Button>
+                </div>
+              </div>
+
               <div className="bg-yellow-50 border-l-4 border-islamic-gold p-6 rounded-lg">
                 <h3 className="font-bold text-yellow-700 mb-4">Reset Functions</h3>
                 <div className="space-y-3">

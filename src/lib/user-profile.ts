@@ -47,20 +47,66 @@ export async function ensureUserProfile(uid: string): Promise<boolean> {
     }
 
     if (existing?.uid) {
-      // Ensure points row exists for first-time point awards.
-      const { error: pointsUpsertErr } = await supabase
-        .from('users_points')
-        .upsert({
-          user_id: uid,
-          total_points: 0,
-          weekly_points: 0,
-          monthly_points: 0,
-          today_points: 0,
-          last_earned_date: new Date().toISOString().slice(0, 10),
-        }, { onConflict: 'user_id', ignoreDuplicates: true });
+      // Seed users_points from existing users totals so a missing/zero row
+      // does not wipe or hide already-earned points in the UI/leaderboard.
+      const { data: userTotals } = await supabase
+        .from('users')
+        .select('points, weeklypoints, monthlypoints, badges')
+        .eq('uid', uid)
+        .maybeSingle();
 
-      if (pointsUpsertErr) {
-        console.warn('[ensureUserProfile] Could not ensure users_points row:', pointsUpsertErr.message);
+      const seedTotal = Number(userTotals?.points ?? 0) || 0;
+      const seedWeekly = Number(userTotals?.weeklypoints ?? 0) || 0;
+      const seedMonthly = Number(userTotals?.monthlypoints ?? 0) || 0;
+      const seedBadges = Number(userTotals?.badges ?? 0) || 0;
+      const seedLevel = 1 + Math.floor(seedBadges / 5);
+
+      const { data: existingPoints } = await supabase
+        .from('users_points')
+        .select('user_id, total_points, weekly_points, monthly_points, badges')
+        .eq('user_id', uid)
+        .maybeSingle();
+
+      if (!existingPoints) {
+        const { error: pointsUpsertErr } = await supabase
+          .from('users_points')
+          .upsert({
+            user_id: uid,
+            total_points: seedTotal,
+            weekly_points: seedWeekly,
+            monthly_points: seedMonthly,
+            today_points: 0,
+            badges: seedBadges,
+            level: seedLevel,
+            last_earned_date: new Date().toISOString().slice(0, 10),
+          }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+        if (pointsUpsertErr) {
+          console.warn('[ensureUserProfile] Could not ensure users_points row:', pointsUpsertErr.message);
+        }
+      } else {
+        const needsSync =
+          seedTotal > Number(existingPoints.total_points ?? 0) ||
+          seedWeekly > Number(existingPoints.weekly_points ?? 0) ||
+          seedMonthly > Number(existingPoints.monthly_points ?? 0) ||
+          seedBadges > Number(existingPoints.badges ?? 0);
+
+        if (needsSync) {
+          const { error: syncErr } = await supabase
+            .from('users_points')
+            .update({
+              total_points: Math.max(Number(existingPoints.total_points ?? 0), seedTotal),
+              weekly_points: Math.max(Number(existingPoints.weekly_points ?? 0), seedWeekly),
+              monthly_points: Math.max(Number(existingPoints.monthly_points ?? 0), seedMonthly),
+              badges: Math.max(Number(existingPoints.badges ?? 0), seedBadges),
+              level: 1 + Math.floor(Math.max(Number(existingPoints.badges ?? 0), seedBadges) / 5),
+            })
+            .eq('user_id', uid);
+
+          if (syncErr) {
+            console.warn('[ensureUserProfile] Could not sync users_points from users:', syncErr.message);
+          }
+        }
       }
 
       if (isPlaceholderName(existing.name) && derivedName && !isPlaceholderName(derivedName)) {

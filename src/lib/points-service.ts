@@ -142,58 +142,60 @@ export async function awardPoints(
       }
     }
 
-    // Call the RPC function
-    console.log('[awardPoints] Calling RPC award_points with:', { p_points: points })
-    const { data, error } = await supabase.rpc('award_points', {
-      p_points: points,
-    })
+    if (countTowardDailyLimit) {
+      // The deployed RPC always counts awards toward the daily limit. Bonus
+      // activities must use the fallback below so their points do not consume
+      // or get truncated by the user's daily allowance.
+      console.log('[awardPoints] Calling RPC award_points with:', { p_points: points })
+      const { data, error } = await supabase.rpc('award_points', {
+        p_points: points,
+      })
 
-    console.log('[awardPoints] RPC response:', { data, error: error?.message })
+      console.log('[awardPoints] RPC response:', { data, error: error?.message })
 
-    if (!error && data) {
-      if (data.success) {
-        console.log('[awardPoints] RPC success, syncing users table')
-        await syncUserSnapshot(user.id, {
-          total_points: data.total_points,
-          weekly_points: data.weekly_points,
-          monthly_points: data.monthly_points,
-        })
-        return data as AwardPointsResponse
-      } 
-      
-      // If RPC failed, check if it's the deprecated "game limit" error
-      // If so, we ignore it and fall through to the direct upsert fallback
-      const isGameLimit = data.message && (
-        data.message.toLowerCase().includes('game limit') || 
-        data.message.toLowerCase().includes('3 games')
-      );
-      
-      if (!isGameLimit) {
-        const currentToday = data.today_points ?? 0
-        const currentLimit = data.daily_limit ?? 100
-        const remaining = Math.max(0, currentLimit - currentToday)
-
-        if (remaining > 0) {
-          console.warn('[awardPoints] RPC denied but partial points possible. Forcing fallback to award remaining:', remaining)
-          // Fall through to fallback logic
-        } else if (!countTowardDailyLimit) {
-          // Activity explicitly bypasses the daily cap (e.g. pledge/durood).
-          // The RPC enforces the cap regardless, so fall through to the fallback
-          // upsert which respects countTowardDailyLimit=false.
-          console.warn('[awardPoints] Daily limit reached but countTowardDailyLimit=false — falling through to fallback to bypass cap')
-          // Fall through to fallback logic
-        } else {
-          console.log('[awardPoints] RPC denied points (likely daily points limit):', data.message)
+      if (!error && data) {
+        if (data.success) {
+          console.log('[awardPoints] RPC success, syncing users table')
+          await syncUserSnapshot(user.id, {
+            total_points: data.total_points,
+            weekly_points: data.weekly_points,
+            monthly_points: data.monthly_points,
+          })
           return data as AwardPointsResponse
         }
+
+        // If RPC failed, check if it's the deprecated "game limit" error.
+        // If so, ignore it and fall through to the direct upsert fallback.
+        const isGameLimit = data.message && (
+          data.message.toLowerCase().includes('game limit') ||
+          data.message.toLowerCase().includes('3 games')
+        );
+
+        if (!isGameLimit) {
+          const currentToday = data.today_points ?? 0
+          const currentLimit = data.daily_limit ?? 100
+          const remaining = Math.max(0, currentLimit - currentToday)
+
+          if (remaining > 0) {
+            console.warn('[awardPoints] RPC denied but partial points possible. Forcing fallback to award remaining:', remaining)
+            // Fall through to fallback logic
+          } else {
+            console.log('[awardPoints] RPC denied points (likely daily points limit):', data.message)
+            return data as AwardPointsResponse
+          }
+        }
+
+        console.warn('[awardPoints] RPC enforced deprecated game limit. Ignoring and using fallback upsert.');
       }
-      
-      console.warn('[awardPoints] RPC enforced deprecated game limit. Ignoring and using fallback upsert.');
+
+      // An RPC transport/schema error also falls through to the existing
+      // compatibility path.
+      console.warn('[awardPoints] RPC unavailable or failed, using fallback upsert', error?.message)
+    } else {
+      console.log('[awardPoints] Bonus award bypasses daily RPC and preserves today_points')
     }
 
     // Fallback: direct upsert with daily cap
-    console.warn('[awardPoints] RPC unavailable or failed, using fallback upsert', error?.message)
-
     const todayStr = new Date().toISOString().slice(0, 10)
     const dailyLimit = 100
 

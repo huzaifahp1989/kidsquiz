@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { applyReferralJoin } from '@/lib/referral-tokens';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,11 @@ export async function POST(request: Request) {
 
     if (!referralCode) {
       return NextResponse.json({ error: 'referralCode is required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const result = await applyReferralJoin(userId, referralCode);

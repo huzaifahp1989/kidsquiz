@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
 import { mobileAuthHelper } from '@/lib/mobile-auth';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -151,7 +152,7 @@ export default function SignupPage() {
       // Handle referral code
       if (referralCode) {
         try {
-          await fetch('/api/kids-zone/referrals/join', {
+          await authenticatedFetch('/api/kids-zone/referrals/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: uid, referralCode }),

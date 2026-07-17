@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDailyMissionSnapshot } from '@/lib/kids-zone-missions';
 import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +11,11 @@ export async function POST(request: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const snapshot = await getDailyMissionSnapshot(userId);

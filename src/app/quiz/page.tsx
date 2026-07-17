@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { quizzes } from '@/data/quizzes';
 import { QUIZ_TOPICS, getTopicById, getTopicQuestionCount, getTopicQuizQuestions, getWeeklyTopicSeed, type QuizTopicId } from '@/lib/quiz-topics';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 type QuizMode = 'daily' | null;
 
@@ -193,7 +194,7 @@ export default function QuizPage() {
         return;
       }
 
-      const res = await fetch('/api/quiz/daily/submit', {
+      const res = await authenticatedFetch('/api/quiz/daily/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

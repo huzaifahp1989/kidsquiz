@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { createClient } from '@supabase/supabase-js';
 import { isTestModeUserId } from '@/lib/test-mode-server';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 // We use a user client for RLS context usually, but for points updates we might need admin
 // However, to keep it secure, we should verify the user's session.
@@ -15,6 +15,11 @@ export async function GET(request: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data, error } = await supabaseAdmin
@@ -52,6 +57,11 @@ export async function POST(request: Request) {
 
     if (!userId || !items) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const targetDate = date || new Date().toISOString().split('T')[0];

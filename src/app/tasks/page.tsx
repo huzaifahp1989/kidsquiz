@@ -7,6 +7,7 @@ import { Modal } from '@/components';
 import { useAuth } from '@/lib/auth-context';
 import { APP_STORE_LINKS, StorePlatform } from '@/lib/app-store-links';
 import { openStoreReview, requestInAppReviewWithFallback } from '@/lib/in-app-review';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 type ReferralPayload = {
   referralCode: string;
@@ -83,7 +84,7 @@ export default function TasksPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const res = await fetch(`/api/kids-zone/referrals?userId=${user.id}`, { cache: 'no-store' });
+        const res = await authenticatedFetch(`/api/kids-zone/referrals?userId=${user.id}`, { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data?.error || 'Could not load referral details.');
@@ -117,7 +118,7 @@ export default function TasksPage() {
     setter('loading');
     setMsg('');
     try {
-      const res = await fetch('/api/tasks/request-claim', {
+      const res = await authenticatedFetch('/api/tasks/request-claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, claimType, notes }),

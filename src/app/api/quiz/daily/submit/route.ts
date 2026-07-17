@@ -4,6 +4,7 @@ import { getStaticQuiz } from '@/lib/quiz-generator';
 import { quizzes } from '@/data/quizzes';
 import { filterQuestionsByTopic, getTopicQuizQuestions } from '@/lib/quiz-topics';
 import { isTestModeUserId } from '@/lib/test-mode-server';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 const MAX_DAILY_QUIZ_ATTEMPTS = 2;
 
@@ -230,6 +231,11 @@ export async function POST(req: Request) {
 
     if (!userId || !quizId || !answers) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(req);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const isTestMode = await isTestModeUserId(userId);

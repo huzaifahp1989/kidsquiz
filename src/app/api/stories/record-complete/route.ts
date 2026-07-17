@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 const POINTS_PER_RECORDING = 30;
 const WEEKLY_POINTS_LIMIT = 400;
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
 
     if (!userId || !storyId) {
       return NextResponse.json({ error: 'userId and storyId are required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(req);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: existingSameWeek, error: existingError } = await supabaseAdmin

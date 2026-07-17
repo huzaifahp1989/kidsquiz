@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getReferralSnapshot } from '@/lib/referral-tokens';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 function getAppUrl(request: Request) {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
@@ -15,6 +16,11 @@ export async function GET(request: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const snapshot = await getReferralSnapshot(userId, getAppUrl(request));

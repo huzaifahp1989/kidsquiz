@@ -54,7 +54,13 @@ CREATE TABLE IF NOT EXISTS public.points_manual_adjustments (
 ALTER TABLE public.points_manual_adjustments ENABLE ROW LEVEL SECURITY;
 
 -- STEP 3: Robust award_points — users_points is source of truth; users sync cannot roll back awards
-CREATE OR REPLACE FUNCTION award_points(p_points int)
+-- Drop first: CREATE OR REPLACE cannot change return type (e.g. json -> jsonb)
+DROP FUNCTION IF EXISTS public.award_points(integer);
+DROP FUNCTION IF EXISTS public.award_points(int);
+DROP FUNCTION IF EXISTS award_points(integer);
+DROP FUNCTION IF EXISTS award_points(int);
+
+CREATE OR REPLACE FUNCTION public.award_points(p_points int)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER

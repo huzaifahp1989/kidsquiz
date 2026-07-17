@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { addPointsWithOptions } from '@/lib/profile-service';
 import { supabase } from '@/lib/supabase';
 import { Heart, Sparkles, Trophy } from 'lucide-react';
 import { Modal } from '@/components';
@@ -23,6 +22,8 @@ const ZIKR_OPTIONS = [
   { label: 'SubhanAllahi wa bihamdihi', value: 'subhanallah_wb' },
 ];
 
+const MAX_RECITATIONS_PER_SUBMISSION = 500;
+
 export default function PledgeClient() {
   const router = useRouter();
   const { user, refreshProfile, updateLocalProfile } = useAuth();
@@ -35,6 +36,7 @@ export default function PledgeClient() {
   const [duroodCount, setDuroodCount] = useState<number | ''>('');
   const [selectedZikr, setSelectedZikr] = useState(ZIKR_OPTIONS[0].value);
   const [zikrCount, setZikrCount] = useState<number | ''>('');
+  const pendingSubmissionIds = useRef<Partial<Record<'durood' | 'zikr', string>>>({});
 
   const handleSubmit = async (type: 'durood' | 'zikr') => {
     if (!user) {
@@ -43,32 +45,46 @@ export default function PledgeClient() {
     }
 
     const count = type === 'durood' ? Number(duroodCount) : Number(zikrCount);
-    if (!count || count <= 0) {
-      alert('Please enter a valid number of recitations.');
+    if (!Number.isInteger(count) || count < 1 || count > MAX_RECITATIONS_PER_SUBMISSION) {
+      alert(`Please enter a whole number from 1 to ${MAX_RECITATIONS_PER_SUBMISSION}.`);
       return;
     }
 
-    const points = Math.floor(count * 0.2);
     setLoading(true);
 
     try {
-      const updated = await addPointsWithOptions(user.id, points, { countTowardDailyLimit: false });
-      if (!updated) throw new Error('Could not award points.');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
 
-      updateLocalProfile({
-        points: updated.points,
-        weeklyPoints: updated.weeklyPoints,
-        monthlyPoints: updated.monthlyPoints,
-        todayPoints: updated.todayPoints,
+      const submissionId = pendingSubmissionIds.current[type] || crypto.randomUUID();
+      pendingSubmissionIds.current[type] = submissionId;
+      const subtype = type === 'durood' ? selectedDurood : selectedZikr;
+
+      const response = await fetch('/api/pledge/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ submissionId, type, subtype, count }),
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || 'Could not record pledge.');
+
+      pendingSubmissionIds.current[type] = undefined;
+      if (
+        Number.isFinite(result.totalPoints)
+        && Number.isFinite(result.weeklyPoints)
+        && Number.isFinite(result.monthlyPoints)
+      ) {
+        updateLocalProfile({
+          points: result.totalPoints,
+          weeklyPoints: result.weeklyPoints,
+          monthlyPoints: result.monthlyPoints,
+          todayPoints: result.todayPoints,
+        });
+      }
       await refreshProfile();
-
-      await supabase.from('pledges').insert({
-        user_id: user.id,
-        type: type,
-        subtype: type === 'durood' ? selectedDurood : selectedZikr,
-        count: count,
-      });
 
       if (type === 'durood') {
         try {
@@ -88,12 +104,14 @@ export default function PledgeClient() {
         ? DUROOD_OPTIONS.find(o => o.value === selectedDurood)?.label 
         : ZIKR_OPTIONS.find(o => o.value === selectedZikr)?.label;
 
-      setSuccessMessage(`MashaAllah! You logged ${count} ${itemName} and earned ${points} points!`);
+      setSuccessMessage(
+        `MashaAllah! You logged ${count} ${itemName} and earned ${Number(result.pointsAwarded || 0)} points!`
+      );
 
       if (type === 'durood') setDuroodCount('');
       else setZikrCount('');
     } catch (error) {
-      alert('Something went wrong. Please try again.');
+      alert(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -183,7 +201,10 @@ export default function PledgeClient() {
                   <label className="block text-sm font-bold text-[#6a422d] mb-2">Select Durood</label>
                   <select
                     value={selectedDurood}
-                    onChange={(e) => setSelectedDurood(e.target.value)}
+                    onChange={(e) => {
+                      pendingSubmissionIds.current.durood = undefined;
+                      setSelectedDurood(e.target.value);
+                    }}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 bg-[#fff5f5]/50 text-[#6a422d] font-semibold focus:border-[#ff6b6b] focus:outline-none disabled:opacity-50"
                   >
@@ -195,9 +216,14 @@ export default function PledgeClient() {
                   <input
                     type="number"
                     min="1"
+                    max={MAX_RECITATIONS_PER_SUBMISSION}
+                    step="1"
                     placeholder="Enter number"
                     value={duroodCount}
-                    onChange={(e) => setDuroodCount(Number(e.target.value) || '')}
+                    onChange={(e) => {
+                      pendingSubmissionIds.current.durood = undefined;
+                      setDuroodCount(Number(e.target.value) || '');
+                    }}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 text-[#6a422d] font-semibold focus:border-[#ff6b6b] focus:outline-none disabled:opacity-50"
                   />
@@ -217,7 +243,10 @@ export default function PledgeClient() {
                   <label className="block text-sm font-bold text-[#6a422d] mb-2">Select Zikr</label>
                   <select
                     value={selectedZikr}
-                    onChange={(e) => setSelectedZikr(e.target.value)}
+                    onChange={(e) => {
+                      pendingSubmissionIds.current.zikr = undefined;
+                      setSelectedZikr(e.target.value);
+                    }}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 bg-[#f0fdfa]/50 text-[#6a422d] font-semibold focus:border-[#14b8a6] focus:outline-none disabled:opacity-50"
                   >
@@ -229,9 +258,14 @@ export default function PledgeClient() {
                   <input
                     type="number"
                     min="1"
+                    max={MAX_RECITATIONS_PER_SUBMISSION}
+                    step="1"
                     placeholder="Enter number"
                     value={zikrCount}
-                    onChange={(e) => setZikrCount(Number(e.target.value) || '')}
+                    onChange={(e) => {
+                      pendingSubmissionIds.current.zikr = undefined;
+                      setZikrCount(Number(e.target.value) || '');
+                    }}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 text-[#6a422d] font-semibold focus:border-[#14b8a6] focus:outline-none disabled:opacity-50"
                   />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -24,6 +24,12 @@ const ZIKR_OPTIONS = [
 
 const MAX_RECITATIONS_PER_SUBMISSION = 500;
 
+type PendingPledgeSubmission = {
+  submissionId: string;
+  subtype: string;
+  count: number;
+};
+
 export default function PledgeClient() {
   const router = useRouter();
   const { user, refreshProfile, updateLocalProfile } = useAuth();
@@ -36,7 +42,6 @@ export default function PledgeClient() {
   const [duroodCount, setDuroodCount] = useState<number | ''>('');
   const [selectedZikr, setSelectedZikr] = useState(ZIKR_OPTIONS[0].value);
   const [zikrCount, setZikrCount] = useState<number | ''>('');
-  const pendingSubmissionIds = useRef<Partial<Record<'durood' | 'zikr', string>>>({});
 
   const handleSubmit = async (type: 'durood' | 'zikr') => {
     if (!user) {
@@ -56,9 +61,24 @@ export default function PledgeClient() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
 
-      const submissionId = pendingSubmissionIds.current[type] || crypto.randomUUID();
-      pendingSubmissionIds.current[type] = submissionId;
       const subtype = type === 'durood' ? selectedDurood : selectedZikr;
+      const storageKey = `pending-pledge:${user.id}:${type}`;
+      let pendingSubmission: PendingPledgeSubmission | null = null;
+
+      try {
+        pendingSubmission = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+      } catch {
+        sessionStorage.removeItem(storageKey);
+      }
+
+      if (
+        !pendingSubmission
+        || pendingSubmission.subtype !== subtype
+        || pendingSubmission.count !== count
+      ) {
+        pendingSubmission = { submissionId: crypto.randomUUID(), subtype, count };
+        sessionStorage.setItem(storageKey, JSON.stringify(pendingSubmission));
+      }
 
       const response = await fetch('/api/pledge/submit', {
         method: 'POST',
@@ -66,12 +86,12 @@ export default function PledgeClient() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ submissionId, type, subtype, count }),
+        body: JSON.stringify({ submissionId: pendingSubmission.submissionId, type, subtype, count }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || 'Could not record pledge.');
 
-      pendingSubmissionIds.current[type] = undefined;
+      sessionStorage.removeItem(storageKey);
       if (
         Number.isFinite(result.totalPoints)
         && Number.isFinite(result.weeklyPoints)
@@ -84,7 +104,11 @@ export default function PledgeClient() {
           todayPoints: result.todayPoints,
         });
       }
-      await refreshProfile();
+      try {
+        await refreshProfile();
+      } catch (refreshError) {
+        console.warn('[pledge] Pledge succeeded but profile refresh failed:', refreshError);
+      }
 
       if (type === 'durood') {
         try {
@@ -201,10 +225,7 @@ export default function PledgeClient() {
                   <label className="block text-sm font-bold text-[#6a422d] mb-2">Select Durood</label>
                   <select
                     value={selectedDurood}
-                    onChange={(e) => {
-                      pendingSubmissionIds.current.durood = undefined;
-                      setSelectedDurood(e.target.value);
-                    }}
+                    onChange={(e) => setSelectedDurood(e.target.value)}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 bg-[#fff5f5]/50 text-[#6a422d] font-semibold focus:border-[#ff6b6b] focus:outline-none disabled:opacity-50"
                   >
@@ -220,10 +241,7 @@ export default function PledgeClient() {
                     step="1"
                     placeholder="Enter number"
                     value={duroodCount}
-                    onChange={(e) => {
-                      pendingSubmissionIds.current.durood = undefined;
-                      setDuroodCount(Number(e.target.value) || '');
-                    }}
+                    onChange={(e) => setDuroodCount(Number(e.target.value) || '')}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 text-[#6a422d] font-semibold focus:border-[#ff6b6b] focus:outline-none disabled:opacity-50"
                   />
@@ -243,10 +261,7 @@ export default function PledgeClient() {
                   <label className="block text-sm font-bold text-[#6a422d] mb-2">Select Zikr</label>
                   <select
                     value={selectedZikr}
-                    onChange={(e) => {
-                      pendingSubmissionIds.current.zikr = undefined;
-                      setSelectedZikr(e.target.value);
-                    }}
+                    onChange={(e) => setSelectedZikr(e.target.value)}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 bg-[#f0fdfa]/50 text-[#6a422d] font-semibold focus:border-[#14b8a6] focus:outline-none disabled:opacity-50"
                   >
@@ -262,10 +277,7 @@ export default function PledgeClient() {
                     step="1"
                     placeholder="Enter number"
                     value={zikrCount}
-                    onChange={(e) => {
-                      pendingSubmissionIds.current.zikr = undefined;
-                      setZikrCount(Number(e.target.value) || '');
-                    }}
+                    onChange={(e) => setZikrCount(Number(e.target.value) || '')}
                     disabled={!user}
                     className="w-full p-4 rounded-xl border-2 border-[#e5c9a3]/30 text-[#6a422d] font-semibold focus:border-[#14b8a6] focus:outline-none disabled:opacity-50"
                   />

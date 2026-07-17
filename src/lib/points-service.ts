@@ -129,16 +129,17 @@ export async function awardPoints(
     // Ensure profile and points rows exist for new users before awarding.
     await ensureUserProfile(user.id)
 
-    // STRICT LIMIT CHECK: Check daily allowance BEFORE calling RPC
+    // Only stop when the allowance is exhausted. The RPC/fallback can award
+    // the remaining allowance when the request would cross the daily cap.
     const allowance = await checkDailyAllowance()
-    if (countTowardDailyLimit && allowance.remaining < points) {
+    if (countTowardDailyLimit && allowance.remaining <= 0) {
       console.warn('[awardPoints] 🛑 Client-side limit check: Daily limit reached', allowance)
       return {
         success: false,
         message: 'No points can be awarded right now. Please try again later.',
         points_awarded: 0,
         today_points: allowance.today_points,
-        daily_limit: 100,
+        daily_limit: allowance.daily_limit,
       }
     }
 

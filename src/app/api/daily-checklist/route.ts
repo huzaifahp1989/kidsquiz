@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { createClient } from '@supabase/supabase-js';
 import { isTestModeUserId } from '@/lib/test-mode-server';
+import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 // We use a user client for RLS context usually, but for points updates we might need admin
 // However, to keep it secure, we should verify the user's session.
@@ -46,15 +46,21 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const WEEKLY_POINTS_LIMIT = 400;
     const body = await request.json();
     const { userId, date, items, goodDeed } = body;
 
-    if (!userId || !items) {
+    if (!userId || !Array.isArray(items)) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = new Date().toISOString().split('T')[0];
+    if (date && date !== targetDate) {
+      return NextResponse.json(
+        { error: 'Daily checklist points can only be updated for today' },
+        { status: 400 }
+      );
+    }
+
     const isTestMode = await isTestModeUserId(userId);
 
     // Calculate Points
@@ -71,15 +77,20 @@ export async function POST(request: Request) {
     if (newPoints > 20) newPoints = 20;
 
     // 1. Get previous points to calculate delta
-    const { data: existing } = await supabaseAdmin
+    const { data: existing, error: existingError } = await supabaseAdmin
       .from('daily_progress')
       .select('daily_points')
       .eq('user_id', userId)
       .eq('date', targetDate)
-      .single();
+      .maybeSingle();
 
-    const previousPoints = existing?.daily_points || 0;
-    const pointDelta = newPoints - previousPoints;
+    if (existingError) throw existingError;
+
+    const previousPoints = Math.max(0, Number(existing?.daily_points || 0));
+    // Earned checklist points are never revoked. Otherwise, unchecking and
+    // rechecking an item would repeatedly award the same points.
+    const requestedPoints = Math.max(previousPoints, newPoints);
+    const pointDelta = requestedPoints - previousPoints;
 
     // 2. Upsert Daily Progress
     const { error: upsertError } = await supabaseAdmin
@@ -89,77 +100,61 @@ export async function POST(request: Request) {
         date: targetDate,
         completed_items: items,
         good_deed: goodDeed,
-        daily_points: newPoints
+        daily_points: requestedPoints
       }, { onConflict: 'user_id, date' });
 
     if (upsertError) throw upsertError;
 
-    // 3. Update User Total Points (only if there is a difference)
-    if (pointDelta !== 0 && !isTestMode) {
+    let pointsAwarded = 0;
+
+    // 3. Award only newly earned points through the shared daily-cap path.
+    if (pointDelta > 0 && !isTestMode) {
       try {
-        // Try RPC first (best way - handles both tables atomically)
-        await supabaseAdmin.rpc('increment_points', { 
-          row_id: userId, 
-          amount: pointDelta 
+        const awardResult = await awardPointsWithDailyCapByUserId(userId, pointDelta, {
+          successMessage: 'Daily checklist points awarded.',
         });
-      } catch (rpcError) {
-        console.warn('RPC increment_points failed, falling back to manual update:', rpcError);
-        
-        // Fallback: Manually update both tables
-        
-        // 1. Update legacy users table
-        const { data: user } = await supabaseAdmin
-          .from('users')
-          .select('points, weeklypoints, monthlypoints')
-          .eq('uid', userId)
-          .maybeSingle();
-          
-        if (user) {
-           const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, (user.weeklypoints || 0) + pointDelta);
-           const weeklyDelta = nextWeekly - Number(user.weeklypoints || 0);
-           const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
-           await supabaseAdmin.from('users').update({
-             points: (user.points || 0) + safeDelta,
-             weeklypoints: nextWeekly,
-             monthlypoints: (user.monthlypoints || 0) + safeDelta
-           }).eq('uid', userId);
+
+        if (!awardResult.success) {
+          throw new Error(awardResult.message);
         }
 
-        // 2. Update users_points table
-        const { data: up } = await supabaseAdmin
-          .from('users_points')
-          .select('total_points, weekly_points, monthly_points')
+        pointsAwarded = awardResult.pointsAwarded;
+      } catch (awardError) {
+        // Restore the claimable amount so a temporary points failure can be retried.
+        const { error: rollbackError } = await supabaseAdmin
+          .from('daily_progress')
+          .update({ daily_points: previousPoints })
           .eq('user_id', userId)
-          .maybeSingle();
-          
-        if (up) {
-           const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, (up.weekly_points || 0) + pointDelta);
-           const weeklyDelta = nextWeekly - Number(up.weekly_points || 0);
-           const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
-           await supabaseAdmin.from('users_points').update({
-               total_points: (up.total_points || 0) + safeDelta,
-               weekly_points: nextWeekly,
-               monthly_points: (up.monthly_points || 0) + safeDelta
-           }).eq('user_id', userId);
-        } else if (user) {
-          const nextWeekly = Math.min(WEEKLY_POINTS_LIMIT, Number(user.weeklypoints || 0) + pointDelta);
-          const weeklyDelta = nextWeekly - Number(user.weeklypoints || 0);
-          const safeDelta = pointDelta >= 0 ? Math.max(0, weeklyDelta) : pointDelta;
-          await supabaseAdmin.from('users_points').upsert({
-            user_id: userId,
-            total_points: Number(user.points || 0) + safeDelta,
-            weekly_points: nextWeekly,
-            monthly_points: Number(user.monthlypoints || 0) + safeDelta,
-            last_earned_date: new Date().toISOString().slice(0, 10),
-          });
+          .eq('date', targetDate);
+
+        if (rollbackError) {
+          console.error('Failed to roll back daily checklist points:', rollbackError);
         }
+
+        throw awardError;
       }
+    }
+
+    const savedPoints = isTestMode
+      ? requestedPoints
+      : previousPoints + pointsAwarded;
+
+    // The global daily/weekly cap can make the actual award smaller than the
+    // checklist delta. Store only what was really awarded so UI and totals agree.
+    if (savedPoints !== requestedPoints) {
+      const { error: correctionError } = await supabaseAdmin
+        .from('daily_progress')
+        .update({ daily_points: savedPoints })
+        .eq('user_id', userId)
+        .eq('date', targetDate);
+
+      if (correctionError) throw correctionError;
     }
 
     return NextResponse.json({ 
       success: true, 
-      points: newPoints,
-      delta: isTestMode ? 0 : pointDelta,
+      points: savedPoints,
+      delta: isTestMode ? 0 : pointsAwarded,
       testMode: isTestMode 
     });
 

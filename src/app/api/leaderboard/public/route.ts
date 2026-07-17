@@ -7,8 +7,11 @@ const WEEKLY_CAP = 400;
 const WEEKLY_NORMALIZED = 300;
 const STAR_MIN_WEEKLY_POINTS = 300;
 
+const sanitizeLeaderboardPoints = (value: number) =>
+  Number.isFinite(value) ? Math.max(0, value) : 0;
+
 const normalizeLeaderboardPoints = (value: number) => {
-  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const safeValue = sanitizeLeaderboardPoints(value);
   return safeValue >= WEEKLY_CAP ? WEEKLY_NORMALIZED : safeValue;
 };
 
@@ -90,24 +93,6 @@ export async function GET(req: Request) {
     }
 
     const filteredRows = (data || []).filter((row: any) => !isTestModeEmail(row.users?.email));
-
-    const overCapUserIds = filteredRows
-      .filter((row: any) => Number(row.weekly_points ?? row.users?.weeklypoints ?? 0) >= WEEKLY_CAP)
-      .map((row: any) => String(row.user_id || ''))
-      .filter(Boolean);
-
-    if (overCapUserIds.length > 0) {
-      await Promise.all([
-        supabaseAdmin
-          .from('users_points')
-          .update({ weekly_points: WEEKLY_NORMALIZED } as any)
-          .in('user_id', overCapUserIds),
-        supabaseAdmin
-          .from('users')
-          .update({ weeklypoints: WEEKLY_NORMALIZED } as any)
-          .in('uid', overCapUserIds),
-      ]);
-    }
     const rawUserIds = filteredRows.map((row: any) => row.user_id).filter(Boolean);
 
     const profilesByUid = new Map<string, any>();
@@ -161,7 +146,7 @@ export async function GET(req: Request) {
       const rawWeeklyPoints = Number(row.weekly_points ?? row.users?.weeklypoints ?? 0);
       const rawMonthlyPoints = Number(row.monthly_points ?? row.users?.monthlypoints ?? 0);
       const weeklyPoints = normalizeLeaderboardPoints(rawWeeklyPoints);
-      const monthlyPoints = normalizeLeaderboardPoints(rawMonthlyPoints);
+      const monthlyPoints = sanitizeLeaderboardPoints(rawMonthlyPoints);
       
       // Use the appropriate points for display
       const displayPoints = isMonthly ? monthlyPoints : weeklyPoints;
@@ -333,7 +318,7 @@ export async function GET(req: Request) {
           uid: winnerData.user_id,
           name: winnerName,
           level: winnerData.level ?? 1,
-          points: Number(winnerData.weekly_points || 0) > WEEKLY_CAP ? WEEKLY_NORMALIZED : (winnerData.weekly_points ?? 0),
+          points: normalizeLeaderboardPoints(Number(winnerData.weekly_points ?? 0)),
           badges: winnerData.badges ?? 0,
         };
       }

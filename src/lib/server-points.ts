@@ -114,9 +114,9 @@ export async function awardPointsWithDailyCapByUserId(
   const existingRow = pointsRowRes.data;
   const userRow = userRowRes.data;
 
-  const baseTotal = Number(existingRow?.total_points ?? userRow?.points ?? 0);
-  const baseWeekly = Number(existingRow?.weekly_points ?? userRow?.weeklypoints ?? 0);
-  const baseMonthly = Number(existingRow?.monthly_points ?? userRow?.monthlypoints ?? 0);
+  const baseTotal = Math.max(Number(existingRow?.total_points ?? 0), Number(userRow?.points ?? 0));
+  const baseWeekly = Math.max(Number(existingRow?.weekly_points ?? 0), Number(userRow?.weeklypoints ?? 0));
+  const baseMonthly = Math.max(Number(existingRow?.monthly_points ?? 0), Number(userRow?.monthlypoints ?? 0));
   const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr;
   const currentTodayPoints = isNewDay ? 0 : Number(existingRow?.today_points ?? 0);
   const cappedByDaily = countTowardDailyLimit

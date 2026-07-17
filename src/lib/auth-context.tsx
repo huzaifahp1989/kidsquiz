@@ -71,13 +71,22 @@ const getBestName = async (currentName: string | undefined | null, email: string
 };
 
 const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
-  const todayPoints = pointsRow?.today_points ?? 0;
-  const points = pointsRow?.total_points ?? userRow.points ?? 0;
-  const weeklyPoints = pointsRow?.weekly_points ?? userRow.weeklyPoints ?? userRow.weeklypoints ?? 0;
-  const monthlyPoints = pointsRow?.monthly_points ?? userRow.monthlyPoints ?? userRow.monthlypoints ?? 0;
-  // Prioritize badges/level from pointsRow (users_points), fall back to userRow (users)
-  const badges = pointsRow?.badges ?? userRow.badges ?? 0;
-  const level = pointsRow?.level ? `Level ${pointsRow.level}` : (userRow.level || 'Beginner');
+  // Prefer the higher of users_points vs users so a stale/zero points row
+  // cannot hide already-earned totals for some accounts.
+  const points = Math.max(Number(pointsRow?.total_points ?? 0), Number(userRow.points ?? 0));
+  const weeklyPoints = Math.max(
+    Number(pointsRow?.weekly_points ?? 0),
+    Number(userRow.weeklyPoints ?? userRow.weeklypoints ?? 0)
+  );
+  const monthlyPoints = Math.max(
+    Number(pointsRow?.monthly_points ?? 0),
+    Number(userRow.monthlyPoints ?? userRow.monthlypoints ?? 0)
+  );
+  const todayPoints = Number(pointsRow?.today_points ?? 0);
+  const badges = Math.max(Number(pointsRow?.badges ?? 0), Number(userRow.badges ?? 0));
+  const level = pointsRow?.level
+    ? `Level ${pointsRow.level}`
+    : (userRow.level || 'Beginner');
 
   return {
     uid: userRow.uid,

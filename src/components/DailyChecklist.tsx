@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Star, Heart } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 type ChecklistItem = {
   id: string;
@@ -38,7 +39,7 @@ export default function DailyChecklist() {
     if (!user?.id) return;
     
     try {
-      const res = await fetch(`/api/daily-checklist?userId=${user.id}`);
+      const res = await authenticatedFetch(`/api/daily-checklist?userId=${user.id}`);
       if (!res.ok) {
         throw new Error(`Failed to load data: ${res.status}`);
       }
@@ -70,7 +71,7 @@ export default function DailyChecklist() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/daily-checklist', {
+      const res = await authenticatedFetch('/api/daily-checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

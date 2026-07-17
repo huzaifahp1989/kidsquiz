@@ -8,6 +8,7 @@ import { Story, Recording } from '@/types/stories';
 import { storyQuizzesByTitle, StoryQuizOptionKey } from '@/data/story-quizzes';
 import { useAuth } from '@/lib/auth-context';
 import { ArrowLeft, Play, Pause, Square, Mic, BookOpen, Star, ExternalLink, CheckCircle, Headphones } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 const RECORD_APP_URL = 'https://create-me-a-audio.vercel.app/kids-record';
 const POINTS_PER_RECORDING = 30;
@@ -104,7 +105,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
     if (!user || !story) return;
     setSubmittingRecording(true);
     try {
-      const res = await fetch('/api/stories/record-complete', {
+      const res = await authenticatedFetch('/api/stories/record-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

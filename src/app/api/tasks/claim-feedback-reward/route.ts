@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 const FEEDBACK_POINTS = 30;
 
@@ -18,6 +19,11 @@ export async function POST(req: Request) {
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(req);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (platform !== 'ios' && platform !== 'android') {

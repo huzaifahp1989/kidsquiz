@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 const POINTS_MAP: Record<string, number> = {
   feedback_ios: 30,
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const authUser = await getAuthenticatedRequestUser(req);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const validTypes = ['feedback_ios', 'feedback_android', 'referral'];

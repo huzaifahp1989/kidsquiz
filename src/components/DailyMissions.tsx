@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Gift, Sparkles, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 type Mission = {
   key: string;
@@ -87,7 +88,7 @@ export default function DailyMissions() {
     const loadMissions = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/kids-zone/daily-missions?userId=${user.id}`, {
+        const res = await authenticatedFetch(`/api/kids-zone/daily-missions?userId=${user.id}`, {
           cache: 'no-store',
         });
         const data = await res.json();
@@ -123,7 +124,7 @@ export default function DailyMissions() {
     setClaiming(true);
     setClaimMessage(null);
     try {
-      const res = await fetch('/api/kids-zone/daily-missions/claim', {
+      const res = await authenticatedFetch('/api/kids-zone/daily-missions/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),

@@ -1,89 +1,86 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { isAdminRequest } from '@/lib/admin-auth';
+import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await context.params;
     const body = await request.json();
     const { points, publish, feedback } = body;
 
-    // 1. Update recording status
-    const { error: updateError } = await supabaseAdmin
+    const pointsToAward = Number(points || 0);
+    if (!Number.isFinite(pointsToAward) || pointsToAward < 0) {
+      return NextResponse.json({ error: 'Points must be a non-negative number.' }, { status: 400 });
+    }
+
+    const { data: recording, error: recordingError } = await supabaseAdmin
+      .from('recordings')
+      .select('user_id, status')
+      .eq('id', id)
+      .single();
+
+    if (recordingError || !recording) {
+      return NextResponse.json({ error: 'Recording not found.' }, { status: 404 });
+    }
+
+    if (recording.status === 'approved') {
+      return NextResponse.json({ error: 'Recording was already approved.' }, { status: 409 });
+    }
+
+    // Claim the pending recording before awarding so concurrent requests cannot
+    // add the same points twice.
+    const { data: updatedRecording, error: updateError } = await supabaseAdmin
       .from('recordings')
       .update({
         status: 'approved',
-        points_awarded: points,
+        points_awarded: pointsToAward,
         admin_notes: feedback,
         is_published: publish,
         reviewed_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('status', recording.status)
+      .select('id')
+      .maybeSingle();
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
-
-    // 2. Award points to user
-    // We fetch the user_id first
-    const { data: recording } = await supabaseAdmin
-      .from('recordings')
-      .select('user_id')
-      .eq('id', id)
-      .single();
-
-    if (recording && points > 0) {
-      // Call the award points logic
-      // Since we are in an API route, we can use the logic from points-service directly or via RPC if it existed
-      // For now, we'll manually update via supabaseAdmin which bypasses RLS
-      
-      const userId = recording.user_id;
-      
-      // Fetch current points
-      const { data: userPoints } = await supabaseAdmin
-        .from('users_points')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      const { data: userRow } = await supabaseAdmin
-        .from('users')
-        .select('points,weeklypoints,monthlypoints')
-        .eq('uid', userId)
-        .maybeSingle();
-
-      const baseTotal = Number(userPoints?.total_points ?? userRow?.points ?? 0);
-      const baseWeekly = Number(userPoints?.weekly_points ?? userRow?.weeklypoints ?? 0);
-      const baseMonthly = Number(userPoints?.monthly_points ?? userRow?.monthlypoints ?? 0);
-
-      const newTotal = baseTotal + Number(points || 0);
-      const newWeekly = baseWeekly + Number(points || 0);
-      const newMonthly = baseMonthly + Number(points || 0);
-
-      await supabaseAdmin
-        .from('users_points')
-        .upsert({
-          user_id: userId,
-          total_points: newTotal,
-          weekly_points: newWeekly,
-          monthly_points: newMonthly,
-          last_earned_date: new Date().toISOString().slice(0, 10),
-        });
-
-      // Also update users table copy if needed
-      await supabaseAdmin
-        .from('users')
-        .update({
-          points: newTotal,
-          weeklypoints: newWeekly,
-          monthlypoints: newMonthly
-        })
-        .eq('uid', userId);
+    if (!updatedRecording) {
+      return NextResponse.json({ error: 'Recording was already approved.' }, { status: 409 });
     }
 
-    return NextResponse.json({ success: true });
+    let pointsAwarded = 0;
+    if (pointsToAward > 0) {
+      const result = await awardPointsWithDailyCapByUserId(recording.user_id, pointsToAward, {
+        countTowardDailyLimit: false,
+        successMessage: `Recording approved. +${pointsToAward} points added.`,
+      });
+
+      if (!result.success) {
+        await supabaseAdmin
+          .from('recordings')
+          .update({
+            status: recording.status,
+            points_awarded: 0,
+            reviewed_at: null,
+          })
+          .eq('id', id)
+          .eq('status', 'approved');
+        return NextResponse.json({ error: result.message }, { status: 500 });
+      }
+      pointsAwarded = result.pointsAwarded;
+    }
+
+    return NextResponse.json({ success: true, pointsAwarded });
   } catch (error) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

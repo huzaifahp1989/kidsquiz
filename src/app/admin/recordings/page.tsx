@@ -89,7 +89,7 @@ export default function AdminRecordingsList() {
       const promises = Array.from(selectedRecordings).map(id =>
         fetch(`/api/admin/recordings/${id}/approve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-admin-auth': 'true' },
           body: JSON.stringify({
             points: 10,
             feedback: 'Approved via bulk action',

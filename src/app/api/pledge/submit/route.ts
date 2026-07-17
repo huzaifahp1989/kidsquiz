@@ -72,6 +72,12 @@ export async function POST(request: Request) {
       );
     }
     if (error) throw error;
+    if (data?.success === false) {
+      return NextResponse.json(
+        { error: data.message || 'This pledge could not be safely retried.' },
+        { status: 409 }
+      );
+    }
     if (!data || data.success !== true) throw new Error('Could not record pledge.');
 
     const pointsAwarded = Number(data.points_awarded || 0);

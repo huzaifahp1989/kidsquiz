@@ -37,7 +37,11 @@ DECLARE
   v_pledge_id UUID;
   v_existing_status TEXT;
   v_existing_points INTEGER;
-  v_points_row public.users_points%ROWTYPE;
+  v_points_total INTEGER := 0;
+  v_points_weekly INTEGER := 0;
+  v_points_monthly INTEGER := 0;
+  v_points_today INTEGER := 0;
+  v_points_last_date DATE;
   v_user_total INTEGER := 0;
   v_user_weekly INTEGER := 0;
   v_user_monthly INTEGER := 0;
@@ -106,8 +110,15 @@ BEGIN
     WHERE user_id = p_user_id
       AND submission_id = p_submission_id;
 
-    SELECT *
-    INTO v_points_row
+    IF COALESCE(v_existing_status, 'pending') <> 'completed' THEN
+      RETURN jsonb_build_object(
+        'success', FALSE,
+        'message', 'This pledge needs manual reconciliation before it can be retried.'
+      );
+    END IF;
+
+    SELECT total_points, weekly_points, monthly_points, today_points, last_earned_date
+    INTO v_points_total, v_points_weekly, v_points_monthly, v_points_today, v_points_last_date
     FROM public.users_points
     WHERE user_id = p_user_id;
 
@@ -116,11 +127,11 @@ BEGIN
       'already_submitted', TRUE,
       'points_awarded', COALESCE(v_existing_points, 0),
       'award_status', v_existing_status,
-      'total_points', COALESCE(v_points_row.total_points, 0),
-      'weekly_points', COALESCE(v_points_row.weekly_points, 0),
-      'monthly_points', COALESCE(v_points_row.monthly_points, 0),
+      'total_points', COALESCE(v_points_total, 0),
+      'weekly_points', COALESCE(v_points_weekly, 0),
+      'monthly_points', COALESCE(v_points_monthly, 0),
       'today_points', CASE
-        WHEN v_points_row.last_earned_date = CURRENT_DATE THEN COALESCE(v_points_row.today_points, 0)
+        WHEN v_points_last_date = CURRENT_DATE THEN COALESCE(v_points_today, 0)
         ELSE 0
       END
     );
@@ -139,8 +150,8 @@ BEGIN
   VALUES (p_user_id, 0, 0, 0, 0, CURRENT_DATE, 0, 1)
   ON CONFLICT (user_id) DO NOTHING;
 
-  SELECT *
-  INTO v_points_row
+  SELECT total_points, weekly_points, monthly_points, today_points, last_earned_date
+  INTO v_points_total, v_points_weekly, v_points_monthly, v_points_today, v_points_last_date
   FROM public.users_points
   WHERE user_id = p_user_id
   FOR UPDATE;
@@ -154,11 +165,11 @@ BEGIN
   FROM public.users
   WHERE uid = p_user_id;
 
-  v_base_total := GREATEST(COALESCE(v_points_row.total_points, 0), COALESCE(v_user_total, 0));
-  v_base_weekly := GREATEST(COALESCE(v_points_row.weekly_points, 0), COALESCE(v_user_weekly, 0));
-  v_base_monthly := GREATEST(COALESCE(v_points_row.monthly_points, 0), COALESCE(v_user_monthly, 0));
+  v_base_total := GREATEST(COALESCE(v_points_total, 0), COALESCE(v_user_total, 0));
+  v_base_weekly := GREATEST(COALESCE(v_points_weekly, 0), COALESCE(v_user_weekly, 0));
+  v_base_monthly := GREATEST(COALESCE(v_points_monthly, 0), COALESCE(v_user_monthly, 0));
   v_today_points := CASE
-    WHEN v_points_row.last_earned_date = CURRENT_DATE THEN COALESCE(v_points_row.today_points, 0)
+    WHEN v_points_last_date = CURRENT_DATE THEN COALESCE(v_points_today, 0)
     ELSE 0
   END;
   v_requested_points := p_count / 5;

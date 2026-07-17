@@ -90,6 +90,7 @@ export default function PledgeClient() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || 'Could not record pledge.');
+      if (result?.success !== true) throw new Error('The server returned an invalid pledge response. Please try again.');
 
       sessionStorage.removeItem(storageKey);
       if (

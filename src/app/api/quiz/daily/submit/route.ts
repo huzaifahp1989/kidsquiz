@@ -149,6 +149,10 @@ function duplicateAttemptResponse() {
   );
 }
 
+function isDailyAttemptLimitError(error: { message?: string } | null): boolean {
+  return Boolean(error?.message?.includes('daily_quiz_attempt_limit_reached'));
+}
+
 async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const dailyLimit = 100;
@@ -363,6 +367,13 @@ export async function POST(req: Request) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isTopicQuiz: true }));
         }
+        if (isDailyAttemptLimitError(attemptError)) {
+          if (isTestMode) {
+            return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isTopicQuiz: true }));
+          }
+          const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+          if (limitResponse) return limitResponse;
+        }
         if (attemptError.code === '23505') {
           return duplicateAttemptResponse();
         }
@@ -410,14 +421,26 @@ export async function POST(req: Request) {
       }
 
       const date = quizId.replace('fallback-', '');
+      const todayDate = new Date().toISOString().split('T')[0];
+      const topicDefinition = getTopicById(topic);
+      if (date !== todayDate || !topicDefinition) {
+        return NextResponse.json(
+          { error: 'This topic quiz is invalid or is no longer current.' },
+          { status: 400 }
+        );
+      }
+
       const staticQuiz = getStaticQuiz(date);
       const questions = staticQuiz.questions;
-      const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
-      const activeQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
-      const expectedQuestionIds = activeQuestions.map((question: any) => String(question.id));
-      if (!expectedQuestionIds.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      const activeQuestions = filterQuestionsByTopic(questions, topicDefinition.id);
+      if (activeQuestions.length !== TOPIC_QUIZ_SIZE) {
+        return NextResponse.json(
+          { error: 'Please use the current five-question topic quiz.' },
+          { status: 400 }
+        );
       }
+
+      const expectedQuestionIds = activeQuestions.map((question: any) => String(question.id));
       if (!hasAnswersForEveryQuestion(answers, expectedQuestionIds)) {
         return NextResponse.json(
           { error: 'Please answer every question before submitting this quiz.' },
@@ -440,7 +463,7 @@ export async function POST(req: Request) {
       const score = correctCount * 10;
       const maxScore = activeQuestions.length * 10;
       const totalPoints = 50;
-      const attemptTopic = getTopicById(topic)?.id ?? 'all';
+      const attemptTopic = topicDefinition.id;
 
       const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
         user_id: userId,
@@ -457,6 +480,13 @@ export async function POST(req: Request) {
       if (attemptError) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isFallback: true }));
+        }
+        if (isDailyAttemptLimitError(attemptError)) {
+          if (isTestMode) {
+            return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isFallback: true }));
+          }
+          const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+          if (limitResponse) return limitResponse;
         }
         if (attemptError.code === '23505') {
           return duplicateAttemptResponse();
@@ -498,12 +528,18 @@ export async function POST(req: Request) {
 
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from('daily_quizzes')
-      .select('question_ids')
+      .select('question_ids, quiz_date')
       .eq('id', quizId)
       .single();
 
-    if (quizError || !quiz) {
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (quizError || !quiz || quiz.quiz_date !== todayDate) {
       return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
+    }
+
+    const topicDefinition = getTopicById(topic);
+    if (!topicDefinition) {
+      return NextResponse.json({ error: 'A valid quiz topic is required.' }, { status: 400 });
     }
 
     const questionIds = quiz.question_ids as string[];
@@ -516,13 +552,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Questions not found' }, { status: 500 });
     }
 
-    const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
-    const candidateQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
+    const candidateQuestions = filterQuestionsByTopic(questions, topicDefinition.id);
+    if (candidateQuestions.length !== TOPIC_QUIZ_SIZE) {
+      return NextResponse.json(
+        { error: 'Please use the current five-question topic quiz.' },
+        { status: 400 }
+      );
+    }
+
     const activeQuestionIds = candidateQuestions.map((question) => String(question.id));
 
-    if (!activeQuestionIds.length) {
-      return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
-    }
     if (!hasAnswersForEveryQuestion(answers, activeQuestionIds)) {
       return NextResponse.json(
         { error: 'Please answer every question before submitting this quiz.' },
@@ -548,7 +587,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const attemptTopic = getTopicById(topic)?.id ?? 'all';
+    const attemptTopic = topicDefinition.id;
     const { data: existingAttempt } = await supabaseAdmin
       .from('quiz_attempts')
       .select('id')
@@ -582,6 +621,13 @@ export async function POST(req: Request) {
     if (attemptError) {
       if (isTestMode && attemptError.code === '23505') {
         return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { attemptId: null }));
+      }
+      if (isDailyAttemptLimitError(attemptError)) {
+        if (isTestMode) {
+          return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { attemptId: null }));
+        }
+        const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+        if (limitResponse) return limitResponse;
       }
       if (attemptError.code === '23505') {
         return duplicateAttemptResponse();

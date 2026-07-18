@@ -51,6 +51,46 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
 CREATE INDEX IF NOT EXISTS quiz_attempts_user_idx ON quiz_attempts(user_id);
 CREATE INDEX IF NOT EXISTS quiz_attempts_quiz_idx ON quiz_attempts(quiz_id);
 
+-- Atomically enforce the two-attempt UTC daily limit under concurrency
+CREATE OR REPLACE FUNCTION enforce_daily_quiz_attempt_limit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_completed_at TIMESTAMPTZ := COALESCE(NEW.completed_at, now());
+  v_utc_day DATE := (v_completed_at AT TIME ZONE 'UTC')::DATE;
+  v_attempt_count INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(NEW.user_id::TEXT || ':' || v_utc_day::TEXT, 0)
+  );
+
+  SELECT count(*)
+  INTO v_attempt_count
+  FROM quiz_attempts
+  WHERE user_id = NEW.user_id
+    AND completed_at >= (v_utc_day::TIMESTAMP AT TIME ZONE 'UTC')
+    AND completed_at < ((v_utc_day + 1)::TIMESTAMP AT TIME ZONE 'UTC');
+
+  IF v_attempt_count >= 2 THEN
+    RAISE EXCEPTION 'daily_quiz_attempt_limit_reached'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  NEW.completed_at := v_completed_at;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS enforce_daily_quiz_attempt_limit_trigger
+  ON quiz_attempts;
+
+CREATE TRIGGER enforce_daily_quiz_attempt_limit_trigger
+BEFORE INSERT ON quiz_attempts
+FOR EACH ROW
+EXECUTE FUNCTION enforce_daily_quiz_attempt_limit();
+
 -- 4. POINTS LEDGER
 -- Detailed transaction log for points (as requested)
 CREATE TABLE IF NOT EXISTS points_ledger (

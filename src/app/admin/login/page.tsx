@@ -9,17 +9,31 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple hardcoded password for now - in production this should be env var
-    if (password === 'admin123') {
-      // Set a simple cookie or local storage
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/admin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(result?.error || 'Unable to sign in');
+        return;
+      }
+
       localStorage.setItem('admin_auth', 'true');
       router.push('/admin');
-    } else {
-      setError('Invalid password');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -66,8 +80,9 @@ export default function AdminLogin() {
             type="submit"
             className="w-full justify-center"
             variant="primary"
+            disabled={isSubmitting}
           >
-            Login
+            {isSubmitting ? 'Signing in...' : 'Login'}
           </Button>
         </form>
       </div>

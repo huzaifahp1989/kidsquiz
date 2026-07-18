@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
-
-function isAdmin(req: Request) {
-  return req.headers.get('x-admin-auth') === 'true';
-}
+import { isAdminRequest } from '@/lib/admin-auth';
 
 function normalizeMarks(input: unknown, length: number) {
   if (!Array.isArray(input)) return Array(length).fill(0);
@@ -37,7 +34,7 @@ function composeStoredAdminNotes(notes: string, manualAdjustment: number) {
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdminRequest(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await context.params;
     const body = await req.json().catch(() => ({}));

@@ -7,6 +7,9 @@ import { supabase } from './supabase'
 import { ensureUserProfile } from './user-profile'
 import { isTestModeEmail } from './test-mode'
 
+const DAILY_POINTS_LIMIT = 100
+const WEEKLY_POINTS_LIMIT = 400
+
 async function syncUserSnapshot(userId: string, totals: {
   total_points?: number
   weekly_points?: number
@@ -47,6 +50,7 @@ export interface AwardPointsResponse {
   level?: number
   badges_earned_now?: number
   daily_limit?: number
+  weekly_limit?: number
 }
 
 type AwardPointsOptions = {
@@ -129,23 +133,41 @@ export async function awardPoints(
     // Ensure profile and points rows exist for new users before awarding.
     await ensureUserProfile(user.id)
 
+    // Keep legacy RPC deployments from exceeding the weekly cap. The database
+    // function also enforces this under a row lock to cover concurrent awards.
+    const currentPoints = await getUserPoints()
+    const currentWeeklyPoints = Math.max(0, Number(currentPoints?.weekly_points ?? 0))
+    const weeklyRemaining = Math.max(0, WEEKLY_POINTS_LIMIT - currentWeeklyPoints)
+    const pointsWithinWeeklyLimit = Math.min(points, weeklyRemaining)
+
+    if (pointsWithinWeeklyLimit <= 0) {
+      console.warn('[awardPoints] 🛑 Client-side limit check: Weekly limit reached')
+      return {
+        success: false,
+        message: 'Weekly limit of 400 points reached.',
+        points_awarded: 0,
+        weekly_points: currentWeeklyPoints,
+        weekly_limit: WEEKLY_POINTS_LIMIT,
+      }
+    }
+
     // STRICT LIMIT CHECK: Check daily allowance BEFORE calling RPC
     const allowance = await checkDailyAllowance()
-    if (countTowardDailyLimit && allowance.remaining < points) {
+    if (countTowardDailyLimit && allowance.remaining < pointsWithinWeeklyLimit) {
       console.warn('[awardPoints] 🛑 Client-side limit check: Daily limit reached', allowance)
       return {
         success: false,
         message: 'No points can be awarded right now. Please try again later.',
         points_awarded: 0,
         today_points: allowance.today_points,
-        daily_limit: 100,
+        daily_limit: DAILY_POINTS_LIMIT,
       }
     }
 
     // Call the RPC function
-    console.log('[awardPoints] Calling RPC award_points with:', { p_points: points })
+    console.log('[awardPoints] Calling RPC award_points with:', { p_points: pointsWithinWeeklyLimit })
     const { data, error } = await supabase.rpc('award_points', {
-      p_points: points,
+      p_points: pointsWithinWeeklyLimit,
     })
 
     console.log('[awardPoints] RPC response:', { data, error: error?.message })
@@ -169,8 +191,15 @@ export async function awardPoints(
       );
       
       if (!isGameLimit) {
+        const currentWeekly = data.weekly_points ?? 0
+        const currentWeeklyLimit = data.weekly_limit ?? WEEKLY_POINTS_LIMIT
+        if (currentWeekly >= currentWeeklyLimit) {
+          console.log('[awardPoints] RPC denied points because the weekly limit was reached')
+          return data as AwardPointsResponse
+        }
+
         const currentToday = data.today_points ?? 0
-        const currentLimit = data.daily_limit ?? 100
+        const currentLimit = data.daily_limit ?? DAILY_POINTS_LIMIT
         const remaining = Math.max(0, currentLimit - currentToday)
 
         if (remaining > 0) {
@@ -195,7 +224,7 @@ export async function awardPoints(
     console.warn('[awardPoints] RPC unavailable or failed, using fallback upsert', error?.message)
 
     const todayStr = new Date().toISOString().slice(0, 10)
-    const dailyLimit = 100
+    const dailyLimit = DAILY_POINTS_LIMIT
 
     console.log('[awardPoints] Fallback: checking existing row for user:', user.id)
     // Ensure row exists
@@ -219,19 +248,26 @@ export async function awardPoints(
     const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr
     const todayPoints = isNewDay ? 0 : existingRow?.today_points ?? 0
 
-    let pointsToAward = points
+    const existingWeeklyPoints = Math.max(0, Number(existingRow?.weekly_points ?? 0))
+    const fallbackWeeklyRemaining = Math.max(0, WEEKLY_POINTS_LIMIT - existingWeeklyPoints)
+    let pointsToAward = Math.min(pointsWithinWeeklyLimit, fallbackWeeklyRemaining)
     if (countTowardDailyLimit && todayPoints + pointsToAward > dailyLimit) {
       pointsToAward = Math.max(0, dailyLimit - todayPoints)
     }
 
     if (pointsToAward <= 0) {
-      console.warn('[awardPoints] Fallback: daily limit reached (0 remaining)')
+      const weeklyLimitReached = fallbackWeeklyRemaining <= 0
+      console.warn(`[awardPoints] Fallback: ${weeklyLimitReached ? 'weekly' : 'daily'} limit reached (0 remaining)`)
       return {
         success: false,
-        message: 'No points can be awarded right now. Please try again later.',
+        message: weeklyLimitReached
+          ? 'Weekly limit of 400 points reached.'
+          : 'No points can be awarded right now. Please try again later.',
         points_awarded: 0,
         today_points: todayPoints,
         daily_limit: dailyLimit,
+        weekly_points: existingWeeklyPoints,
+        weekly_limit: WEEKLY_POINTS_LIMIT,
       }
     }
 
@@ -239,7 +275,7 @@ export async function awardPoints(
     console.log('[awardPoints] Fallback: daily check:', { isNewDay, todayPoints, newDailyTotal, dailyLimit, pointsToAward, countTowardDailyLimit })
 
     const total = (existingRow?.total_points ?? 0) + pointsToAward
-    const weekly = (existingRow?.weekly_points ?? 0) + pointsToAward
+    const weekly = existingWeeklyPoints + pointsToAward
     const monthly = (existingRow?.monthly_points ?? 0) + pointsToAward
     
     // Calculate badges/level for response purposes.
@@ -293,6 +329,7 @@ export async function awardPoints(
       level: level,
       badges_earned_now: badgesEarnedNow,
       daily_limit: dailyLimit,
+      weekly_limit: WEEKLY_POINTS_LIMIT,
     }
   } catch (error) {
     console.error('[awardPoints] Exception caught:', error)
@@ -380,8 +417,8 @@ export async function checkDailyAllowance(): Promise<{
   if (!userPoints) {
     return {
       today_points: 0,
-      remaining: 100,
-      daily_limit: 100,
+      remaining: DAILY_POINTS_LIMIT,
+      daily_limit: DAILY_POINTS_LIMIT,
     }
   }
 
@@ -393,8 +430,8 @@ export async function checkDailyAllowance(): Promise<{
 
   return {
     today_points: actualTodayPoints,
-    remaining: Math.max(0, 100 - actualTodayPoints),
-    daily_limit: 100,
+    remaining: Math.max(0, DAILY_POINTS_LIMIT - actualTodayPoints),
+    daily_limit: DAILY_POINTS_LIMIT,
   }
 }
 

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { awardPoints } from './points-service';
+import { getEffectiveTodayPoints } from './daily-points';
 
 export interface KidProfile {
   uid: string;
@@ -25,7 +26,7 @@ export interface KidProfile {
 
 function mapUser(row: any, pointsRow?: any): KidProfile {
   const dailyLimit = 100;
-  const todayPoints = pointsRow?.today_points ?? 0;
+  const todayPoints = getEffectiveTodayPoints(pointsRow);
 
   const totalPoints = pointsRow?.total_points ?? row.points ?? 0;
   const weeklyPoints = pointsRow?.weekly_points ?? row.weeklyPoints ?? row.weeklypoints ?? 0;
@@ -72,7 +73,7 @@ export async function getProfile(uid: string): Promise<KidProfile | null> {
 
     const { data: pointsRow, error: pointsError } = await supabase
       .from('users_points')
-      .select('total_points, weekly_points, monthly_points, today_points')
+      .select('total_points, weekly_points, monthly_points, today_points, last_earned_date')
       .eq('user_id', uid)
       .maybeSingle();
 
@@ -122,7 +123,7 @@ export async function createProfile(
 
     const { data: pointsRow, error: pointsError } = await supabase
       .from('users_points')
-      .select('total_points, weekly_points, monthly_points, today_points')
+      .select('total_points, weekly_points, monthly_points, today_points, last_earned_date')
       .eq('user_id', uid)
       .maybeSingle();
 

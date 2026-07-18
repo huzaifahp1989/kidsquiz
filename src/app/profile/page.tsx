@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { ensureUserProfile } from '@/lib/user-profile';
+import { getEffectiveTodayPoints } from '@/lib/daily-points';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
 
@@ -47,6 +48,9 @@ export default function ProfilePage() {
   }, [profile, user?.email]);
 
   const canEdit = useMemo(() => !!user?.id, [user?.id]);
+  const dailyPoints = userPoints
+    ? getEffectiveTodayPoints(userPoints)
+    : profile?.todayPoints ?? 0;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -252,7 +256,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-center rounded-lg bg-green-50 p-3">
               <div className="text-xs text-gray-600">Daily Points</div>
-              <div className="text-xl font-bold text-islamic-green">{userPoints?.today_points ?? profile?.todayPoints ?? 0}/100</div>
+              <div className="text-xl font-bold text-islamic-green">{dailyPoints}/100</div>
             </div>
             <div className="text-center rounded-lg bg-yellow-50 p-3">
               <div className="text-xs text-gray-600">Badges</div>

@@ -38,13 +38,14 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   quiz_id UUID NOT NULL REFERENCES daily_quizzes(id) ON DELETE CASCADE,
+  topic TEXT NOT NULL DEFAULT 'all' CHECK (topic IN ('quran', 'hajj', 'salah', 'hadith', 'seerah', 'sahabah', 'all', 'legacy')),
   score INTEGER NOT NULL DEFAULT 0,
   max_score INTEGER NOT NULL DEFAULT 0,
   completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   duration_seconds INTEGER,
   is_perfect_score BOOLEAN DEFAULT FALSE,
   is_flagged BOOLEAN DEFAULT FALSE, -- Anti-cheat flag
-  UNIQUE(user_id, quiz_id) -- Only one attempt per user per daily quiz
+  UNIQUE(user_id, quiz_id, topic) -- One attempt per topic in the daily quiz
 );
 
 CREATE INDEX IF NOT EXISTS quiz_attempts_user_idx ON quiz_attempts(user_id);

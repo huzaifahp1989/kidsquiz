@@ -2,10 +2,16 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStaticQuiz } from '@/lib/quiz-generator';
 import { quizzes } from '@/data/quizzes';
-import { filterQuestionsByTopic, getTopicQuizQuestions } from '@/lib/quiz-topics';
+import {
+  filterQuestionsByTopic,
+  getTopicById,
+  getTopicQuizQuestions,
+  getWeeklyTopicSeed,
+} from '@/lib/quiz-topics';
 import { isTestModeUserId } from '@/lib/test-mode-server';
 
 const MAX_DAILY_QUIZ_ATTEMPTS = 2;
+const TOPIC_QUIZ_SIZE = 5;
 
 function getUtcDayWindow() {
   const now = new Date();
@@ -120,6 +126,29 @@ async function ensureFallbackDailyQuizId(date: string, questionIds: string[]): P
   return reread.id;
 }
 
+function hasAnswersForEveryQuestion(answers: unknown, questionIds: string[]): answers is Record<string, unknown> {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return false;
+  }
+
+  const answerRecord = answers as Record<string, unknown>;
+  return questionIds.every((questionId) => {
+    if (!Object.prototype.hasOwnProperty.call(answerRecord, questionId)) {
+      return false;
+    }
+
+    const answer = answerRecord[questionId];
+    return typeof answer === 'number' && Number.isInteger(answer) && answer >= 0;
+  });
+}
+
+function duplicateAttemptResponse() {
+  return NextResponse.json(
+    { error: 'You have already attempted this topic quiz.' },
+    { status: 409 }
+  );
+}
+
 async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const dailyLimit = 100;
@@ -226,9 +255,9 @@ function successNoPoints(score: number, maxScore: number, totalPossiblePoints: n
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userId, quizId, answers, durationSeconds, topic, questionIds: submittedQuestionIds } = body;
+    const { userId, quizId, answers, durationSeconds, topic } = body;
 
-    if (!userId || !quizId || !answers) {
+    if (!userId || typeof quizId !== 'string' || !answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -260,25 +289,39 @@ export async function POST(req: Request) {
     }
 
     if (quizId.startsWith('topic-')) {
-      const parsed = String(quizId).split('-');
-      const topicFromId = parsed.length >= 3 ? parsed[1] : topic;
-      const weekSeedFromId = parsed.length >= 4 ? parsed.slice(2).join('-') : new Date().toISOString().split('T')[0];
-      const todayDate = new Date().toISOString().split('T')[0];
+      const topicQuizMatch = /^topic-([a-z]+)-(\d{4}-\d{2}-\d{2})$/.exec(quizId);
+      const topicDefinition = getTopicById(topicQuizMatch?.[1]);
+      const weekSeedFromId = topicQuizMatch?.[2];
+      const currentWeekSeed = getWeeklyTopicSeed();
 
-      const topicQuestions = getTopicQuizQuestions((quizzes as any[]).filter((q) => q && q.id), topicFromId, weekSeedFromId, 5);
-      if (!topicQuestions.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      if (!topicDefinition || weekSeedFromId !== currentWeekSeed) {
+        return NextResponse.json(
+          { error: 'This topic quiz is invalid or is no longer current.' },
+          { status: 400 }
+        );
       }
 
-      const allowedQuestionIds = new Set(
-        Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-          ? submittedQuestionIds.map((id: string) => String(id))
-          : topicQuestions.map((q: any) => String(q.id))
-      );
+      const todayDate = new Date().toISOString().split('T')[0];
 
-      const activeQuestions = topicQuestions.filter((q: any) => allowedQuestionIds.has(String(q.id)));
-      if (!activeQuestions.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      const topicQuestions = getTopicQuizQuestions(
+        (quizzes as any[]).filter((q) => q && q.id),
+        topicDefinition.id,
+        currentWeekSeed,
+        TOPIC_QUIZ_SIZE
+      );
+      if (topicQuestions.length !== TOPIC_QUIZ_SIZE) {
+        return NextResponse.json(
+          { error: 'A complete five-question quiz is not available for this topic.' },
+          { status: 400 }
+        );
+      }
+
+      const expectedQuestionIds = topicQuestions.map((question: any) => String(question.id));
+      if (!hasAnswersForEveryQuestion(answers, expectedQuestionIds)) {
+        return NextResponse.json(
+          { error: 'Please answer all five questions before submitting this topic.' },
+          { status: 400 }
+        );
       }
 
       if (!isTestMode) {
@@ -290,25 +333,24 @@ export async function POST(req: Request) {
 
       const fallbackDailyQuizId = await ensureFallbackDailyQuizId(
         todayDate,
-        activeQuestions.map((q: any) => String(q.id))
+        expectedQuestionIds
       );
 
       let correctCount = 0;
-      const questionMap = new Map(activeQuestions.map((q: any) => [String(q.id), q]));
+      const questionMap = new Map(topicQuestions.map((q: any) => [String(q.id), q]));
       for (const [qId, ansIdx] of Object.entries(answers)) {
-        if (!allowedQuestionIds.has(String(qId))) continue;
         const q = questionMap.get(String(qId));
         if (q && Number(q.correctAnswer) === Number(ansIdx)) correctCount++;
       }
 
       const score = correctCount * 10;
-      const maxScore = activeQuestions.length * 10;
-      const isCompletedTopic = activeQuestions.every((q: any) => Object.prototype.hasOwnProperty.call(answers, String(q.id)));
-      const totalPoints = isCompletedTopic ? 50 : 0;
+      const maxScore = topicQuestions.length * 10;
+      const totalPoints = 50;
 
       const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
         user_id: userId,
         quiz_id: fallbackDailyQuizId,
+        topic: topicDefinition.id,
         score,
         max_score: maxScore,
         duration_seconds: durationSeconds,
@@ -320,6 +362,9 @@ export async function POST(req: Request) {
       if (attemptError) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isTopicQuiz: true }));
+        }
+        if (attemptError.code === '23505') {
+          return duplicateAttemptResponse();
         }
         throw attemptError;
       }
@@ -369,39 +414,38 @@ export async function POST(req: Request) {
       const questions = staticQuiz.questions;
       const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
       const activeQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
-
-      const allowedQuestionIds = new Set(
-        Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-          ? submittedQuestionIds.map((id: string) => String(id))
-          : activeQuestions.map((q: any) => String(q.id))
-      );
-
-      const scoredQuestions = activeQuestions.filter((q: any) => allowedQuestionIds.has(String(q.id)));
-      if (!scoredQuestions.length) {
+      const expectedQuestionIds = activeQuestions.map((question: any) => String(question.id));
+      if (!expectedQuestionIds.length) {
         return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      }
+      if (!hasAnswersForEveryQuestion(answers, expectedQuestionIds)) {
+        return NextResponse.json(
+          { error: 'Please answer every question before submitting this quiz.' },
+          { status: 400 }
+        );
       }
 
       const fallbackDailyQuizId = await ensureFallbackDailyQuizId(
         date,
-        scoredQuestions.map((q: any) => String(q.id))
+        expectedQuestionIds
       );
 
       let correctCount = 0;
-      const questionMap = new Map(scoredQuestions.map((q: any) => [String(q.id), q]));
+      const questionMap = new Map(activeQuestions.map((q: any) => [String(q.id), q]));
       for (const [qId, ansIdx] of Object.entries(answers)) {
-        if (!allowedQuestionIds.has(String(qId))) continue;
         const q = questionMap.get(String(qId));
         if (q && Number(q.correctAnswer) === Number(ansIdx)) correctCount++;
       }
 
       const score = correctCount * 10;
-      const maxScore = scoredQuestions.length * 10;
-      const isCompletedTopic = scoredQuestions.every((q: any) => Object.prototype.hasOwnProperty.call(answers, String(q.id)));
-      const totalPoints = isCompletedTopic ? 50 : 0;
+      const maxScore = activeQuestions.length * 10;
+      const totalPoints = 50;
+      const attemptTopic = getTopicById(topic)?.id ?? 'all';
 
       const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
         user_id: userId,
         quiz_id: fallbackDailyQuizId,
+        topic: attemptTopic,
         score,
         max_score: maxScore,
         duration_seconds: durationSeconds,
@@ -413,6 +457,9 @@ export async function POST(req: Request) {
       if (attemptError) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isFallback: true }));
+        }
+        if (attemptError.code === '23505') {
+          return duplicateAttemptResponse();
         }
         throw attemptError;
       }
@@ -471,24 +518,21 @@ export async function POST(req: Request) {
 
     const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
     const candidateQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
-    const allowedQuestionIds = new Set(
-      Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-        ? submittedQuestionIds.map((id: string) => String(id))
-        : candidateQuestions.map((q) => String(q.id))
-    );
-
-    const activeQuestionIds = candidateQuestions
-      .map((q) => String(q.id))
-      .filter((id) => allowedQuestionIds.has(id));
+    const activeQuestionIds = candidateQuestions.map((question) => String(question.id));
 
     if (!activeQuestionIds.length) {
       return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
     }
+    if (!hasAnswersForEveryQuestion(answers, activeQuestionIds)) {
+      return NextResponse.json(
+        { error: 'Please answer every question before submitting this quiz.' },
+        { status: 400 }
+      );
+    }
 
     let correctCount = 0;
-    const questionMap = new Map(questions.map((q) => [String(q.id), q.correct_answer_index]));
+    const questionMap = new Map(candidateQuestions.map((q) => [String(q.id), q.correct_answer_index]));
     for (const [qId, ansIdx] of Object.entries(answers)) {
-      if (!allowedQuestionIds.has(String(qId))) continue;
       if (questionMap.get(String(qId)) === Number(ansIdx)) correctCount++;
     }
 
@@ -504,15 +548,17 @@ export async function POST(req: Request) {
       }
     }
 
+    const attemptTopic = getTopicById(topic)?.id ?? 'all';
     const { data: existingAttempt } = await supabaseAdmin
       .from('quiz_attempts')
       .select('id')
       .eq('user_id', userId)
       .eq('quiz_id', quizId)
+      .eq('topic', attemptTopic)
       .maybeSingle();
 
     if (!isTestMode && existingAttempt) {
-      return NextResponse.json({ error: 'You have already attempted this quiz.' }, { status: 400 });
+      return duplicateAttemptResponse();
     }
 
     const { data: attempt, error: attemptError } = await supabaseAdmin
@@ -520,6 +566,7 @@ export async function POST(req: Request) {
       .insert({
         user_id: userId,
         quiz_id: quizId,
+        topic: attemptTopic,
         score,
         max_score: maxScore,
         duration_seconds: durationSeconds,
@@ -530,12 +577,14 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    const isCompletedTopic = activeQuestionIds.every((id) => Object.prototype.hasOwnProperty.call(answers, id));
-    const totalPoints = isCompletedTopic ? 50 : 0;
+    const totalPoints = 50;
 
     if (attemptError) {
       if (isTestMode && attemptError.code === '23505') {
         return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { attemptId: null }));
+      }
+      if (attemptError.code === '23505') {
+        return duplicateAttemptResponse();
       }
       throw attemptError;
     }

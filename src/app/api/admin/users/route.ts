@@ -85,11 +85,14 @@ const userMatchesSearch = (user: any, q: string) => {
   return tokens.every((token) => searchableText.includes(token));
 };
 
+type PointField = 'points' | 'weeklypoints' | 'monthlypoints';
+
 const syncUsersPointsSnapshot = async (
   uid: string,
   points: number,
   weeklypoints: number,
-  monthlypoints: number
+  monthlypoints: number,
+  fieldsToSync: PointField[] = ['points', 'weeklypoints', 'monthlypoints']
 ) => {
   const safeTotal = Number.isFinite(points) ? Math.max(0, Number(points || 0)) : 0;
   const safeWeekly = Number.isFinite(weeklypoints) ? Math.max(0, Number(weeklypoints || 0)) : 0;
@@ -97,21 +100,53 @@ const syncUsersPointsSnapshot = async (
   const badges = Math.floor(safeTotal / 100);
   const level = 1 + Math.floor(badges / 5);
 
-  const { error } = await supabaseAdmin
+  const { data: existingRow, error: readError } = await supabaseAdmin
     .from('users_points')
-    .upsert({
-      user_id: uid,
-      total_points: safeTotal,
-      weekly_points: safeWeekly,
-      monthly_points: safeMonthly,
-      today_points: 0,
-      badges,
-      level,
-      last_earned_date: new Date().toISOString().slice(0, 10),
-    }, { onConflict: 'user_id' });
+    .select('user_id')
+    .eq('user_id', uid)
+    .maybeSingle();
 
-  if (error) {
-    console.warn('[admin/users] Failed syncing users_points snapshot:', error.message);
+  if (readError) {
+    console.warn('[admin/users] Failed reading users_points snapshot:', readError.message);
+    return;
+  }
+
+  if (!existingRow) {
+    const { error: insertError } = await supabaseAdmin
+      .from('users_points')
+      .upsert({
+        user_id: uid,
+        total_points: safeTotal,
+        weekly_points: safeWeekly,
+        monthly_points: safeMonthly,
+        badges,
+        level,
+      }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+    if (insertError) {
+      console.warn('[admin/users] Failed creating users_points snapshot:', insertError.message);
+    }
+    return;
+  }
+
+  const updates: Record<string, number> = {};
+  if (fieldsToSync.includes('points')) {
+    updates.total_points = safeTotal;
+    updates.badges = badges;
+    updates.level = level;
+  }
+  if (fieldsToSync.includes('weeklypoints')) updates.weekly_points = safeWeekly;
+  if (fieldsToSync.includes('monthlypoints')) updates.monthly_points = safeMonthly;
+
+  if (Object.keys(updates).length === 0) return;
+
+  const { error: updateError } = await supabaseAdmin
+    .from('users_points')
+    .update(updates)
+    .eq('user_id', uid);
+
+  if (updateError) {
+    console.warn('[admin/users] Failed syncing users_points snapshot:', updateError.message);
   }
 };
 
@@ -507,7 +542,12 @@ export async function PUT(request: Request) {
       uid,
       Number(updatedUser?.points || 0),
       Number(updatedUser?.weeklypoints || 0),
-      Number(updatedUser?.monthlypoints || 0)
+      Number(updatedUser?.monthlypoints || 0),
+      [
+        ...(points !== undefined ? ['points' as const] : []),
+        ...(weeklypoints !== undefined ? ['weeklypoints' as const] : []),
+        ...(monthlypoints !== undefined ? ['monthlypoints' as const] : []),
+      ]
     );
 
     if (typeof winnerTick === 'boolean') {

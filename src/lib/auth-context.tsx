@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import { ensureUserProfile } from '@/lib/user-profile';
 import { supabase } from '@/lib/supabase';
 import { mobileAuthHelper } from '@/lib/mobile-auth';
+import { getEffectiveTodayPoints } from '@/lib/daily-points';
 
 type KidProfile = {
   uid: string;
@@ -71,7 +72,7 @@ const getBestName = async (currentName: string | undefined | null, email: string
 };
 
 const mapProfile = (userRow: any, pointsRow?: any): KidProfile => {
-  const todayPoints = pointsRow?.today_points ?? 0;
+  const todayPoints = getEffectiveTodayPoints(pointsRow);
   const points = pointsRow?.total_points ?? userRow.points ?? 0;
   const weeklyPoints = pointsRow?.weekly_points ?? userRow.weeklyPoints ?? userRow.weeklypoints ?? 0;
   const monthlyPoints = pointsRow?.monthly_points ?? userRow.monthlyPoints ?? userRow.monthlypoints ?? 0;
@@ -125,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (data) {
       const { data: pointsRow, error: pointsError } = await supabase
         .from('users_points')
-        .select('total_points, weekly_points, monthly_points, today_points, badges, level')
+        .select('total_points, weekly_points, monthly_points, today_points, last_earned_date, badges, level')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -153,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (refetched) {
           const { data: pointsRow, error: pointsError } = await supabase
             .from('users_points')
-            .select('total_points, weekly_points, monthly_points, today_points, badges, level')
+            .select('total_points, weekly_points, monthly_points, today_points, last_earned_date, badges, level')
             .eq('user_id', user.id)
             .maybeSingle();
 
@@ -264,7 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (newData) {
                   const { data: pointsRow, error: pointsError } = await supabase
                     .from('users_points')
-                    .select('total_points, weekly_points, monthly_points, today_points, badges, level')
+                    .select('total_points, weekly_points, monthly_points, today_points, last_earned_date, badges, level')
                     .eq('user_id', u.id)
                     .maybeSingle();
                   
@@ -284,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else if (data) {
               const { data: pointsRow, error: pointsError } = await supabase
                 .from('users_points')
-                .select('total_points, weekly_points, monthly_points, today_points, badges, level')
+                .select('total_points, weekly_points, monthly_points, today_points, last_earned_date, badges, level')
                 .eq('user_id', u.id)
                 .maybeSingle();
               

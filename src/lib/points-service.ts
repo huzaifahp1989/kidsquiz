@@ -6,6 +6,7 @@
 import { supabase } from './supabase'
 import { ensureUserProfile } from './user-profile'
 import { isTestModeEmail } from './test-mode'
+import { getEffectiveTodayPoints, getUtcDateKey } from './daily-points'
 
 async function syncUserSnapshot(userId: string, totals: {
   total_points?: number
@@ -194,7 +195,7 @@ export async function awardPoints(
     // Fallback: direct upsert with daily cap
     console.warn('[awardPoints] RPC unavailable or failed, using fallback upsert', error?.message)
 
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = getUtcDateKey()
     const dailyLimit = 100
 
     console.log('[awardPoints] Fallback: checking existing row for user:', user.id)
@@ -217,7 +218,7 @@ export async function awardPoints(
     }
 
     const isNewDay = !existingRow?.last_earned_date || existingRow.last_earned_date !== todayStr
-    const todayPoints = isNewDay ? 0 : existingRow?.today_points ?? 0
+    const todayPoints = getEffectiveTodayPoints(existingRow)
 
     let pointsToAward = points
     if (countTowardDailyLimit && todayPoints + pointsToAward > dailyLimit) {
@@ -330,7 +331,10 @@ export async function getUserPoints(): Promise<UserPoints | null> {
       return null
     }
 
-    return data as UserPoints
+    return {
+      ...(data as UserPoints),
+      today_points: getEffectiveTodayPoints(data),
+    }
   } catch (error) {
     console.error('Error in getUserPoints:', error)
     return null
@@ -358,7 +362,10 @@ export async function getUserPointsById(
       return null
     }
 
-    return data as UserPoints
+    return {
+      ...(data as UserPoints),
+      today_points: getEffectiveTodayPoints(data),
+    }
   } catch (error) {
     console.error('Error in getUserPointsById:', error)
     return null
@@ -385,11 +392,7 @@ export async function checkDailyAllowance(): Promise<{
     }
   }
 
-  // Check if the last earned date was today (UTC)
-  // If not, it means it's a new day and points should be 0
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const isNewDay = userPoints.last_earned_date !== todayStr
-  const actualTodayPoints = isNewDay ? 0 : userPoints.today_points
+  const actualTodayPoints = getEffectiveTodayPoints(userPoints)
 
   return {
     today_points: actualTodayPoints,

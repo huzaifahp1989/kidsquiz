@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getEffectiveTodayPoints } from '@/lib/daily-points';
 
 export type MissionKey = 'quiz' | 'game' | 'tracker' | 'points';
 
@@ -106,7 +107,7 @@ export async function getDailyMissionSnapshot(userId: string): Promise<DailyMiss
       .lte('playedat', endIso),
     supabaseAdmin
       .from('users_points')
-      .select('today_points')
+      .select('today_points, last_earned_date')
       .eq('user_id', userId)
       .maybeSingle(),
     supabaseAdmin
@@ -137,7 +138,10 @@ export async function getDailyMissionSnapshot(userId: string): Promise<DailyMiss
     quiz: Number(quizRes.count || 0),
     game: Number(gamesRes.count || 0),
     tracker: trackerProgress,
-    points: Number(pointsRes.data?.today_points || trackerBaseRes.data?.daily_points || 0),
+    points: Math.max(
+      getEffectiveTodayPoints(pointsRes.data),
+      Number(trackerBaseRes.data?.daily_points || 0)
+    ),
   };
 
   const missions: MissionStatus[] = MISSION_DEFINITIONS.map((mission) => {

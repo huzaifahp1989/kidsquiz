@@ -153,92 +153,26 @@ function isDailyAttemptLimitError(error: { message?: string } | null): boolean {
   return Boolean(error?.message?.includes('daily_quiz_attempt_limit_reached'));
 }
 
-async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const dailyLimit = 100;
-  const weeklyLimit = 400;
-
-  let finalPointsAwarded = 0;
-  let reason: string | null = null;
-  let currentTodayPoints = 0;
-
-  const { data: userPointsRow, error: pointsFetchError } = await supabaseAdmin
-    .from('users_points')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (!pointsFetchError && userPointsRow) {
-    const isNewDay = userPointsRow.last_earned_date !== todayStr;
-    currentTodayPoints = isNewDay ? 0 : (userPointsRow.today_points || 0);
-
-    let pointsToAward = totalPoints;
-    if (currentTodayPoints + pointsToAward > dailyLimit) {
-      pointsToAward = Math.max(0, dailyLimit - currentTodayPoints);
-    }
-    pointsToAward = Math.max(0, Math.min(pointsToAward, weeklyLimit - Number(userPointsRow.weekly_points || 0)));
-
-    if (pointsToAward > 0) {
-      const newTotal = (userPointsRow.total_points || 0) + pointsToAward;
-      const newWeekly = Math.min(weeklyLimit, (userPointsRow.weekly_points || 0) + pointsToAward);
-      const newMonthly = (userPointsRow.monthly_points || 0) + pointsToAward;
-      const newToday = currentTodayPoints + pointsToAward;
-
-      const { error: updateError } = await supabaseAdmin
-        .from('users_points')
-        .update({
-          total_points: newTotal,
-          weekly_points: newWeekly,
-          monthly_points: newMonthly,
-          today_points: newToday,
-          last_earned_date: todayStr,
-        })
-        .eq('user_id', userId);
-
-      if (!updateError) {
-        finalPointsAwarded = pointsToAward;
-        await supabaseAdmin
-          .from('users')
-          .update({ points: newTotal, weeklypoints: newWeekly, monthlypoints: newMonthly })
-          .eq('uid', userId);
-      } else {
-        console.error('Failed to update points:', updateError);
-        reason = 'update_failed';
-      }
-    } else {
-      reason = 'daily_limit_reached';
-    }
-  } else if (!userPointsRow) {
-    const pointsToAward = Math.min(totalPoints, dailyLimit, weeklyLimit);
-    const { error: insertError } = await supabaseAdmin
-      .from('users_points')
-      .insert({
-        user_id: userId,
-        total_points: pointsToAward,
-        weekly_points: pointsToAward,
-        monthly_points: pointsToAward,
-        today_points: pointsToAward,
-        last_earned_date: todayStr,
-      });
-
-    if (!insertError) {
-      finalPointsAwarded = pointsToAward;
-      await supabaseAdmin
-        .from('users')
-        .update({ points: pointsToAward, weeklypoints: pointsToAward, monthlypoints: pointsToAward })
-        .eq('uid', userId);
-    } else {
-      console.error('Failed to insert points:', insertError);
-      reason = 'insert_failed';
-    }
-  }
-
-  return {
-    pointsAwarded: finalPointsAwarded,
-    reason,
-    todayPoints: currentTodayPoints,
-    dailyLimit,
-  };
+async function submitQuizAttemptAndAward(params: {
+  userId: string;
+  quizId: string;
+  topic: string;
+  score: number;
+  maxScore: number;
+  durationSeconds: number | null;
+  isFlagged: boolean;
+  isTestMode: boolean;
+}) {
+  return supabaseAdmin.rpc('submit_daily_topic_quiz_attempt', {
+    p_user_id: params.userId,
+    p_quiz_id: params.quizId,
+    p_topic: params.topic,
+    p_score: params.score,
+    p_max_score: params.maxScore,
+    p_duration_seconds: params.durationSeconds,
+    p_is_flagged: params.isFlagged,
+    p_is_test_mode: params.isTestMode,
+  });
 }
 
 function successNoPoints(score: number, maxScore: number, totalPossiblePoints: number, flags?: Record<string, unknown>) {
@@ -351,16 +285,15 @@ export async function POST(req: Request) {
       const maxScore = topicQuestions.length * 10;
       const totalPoints = 50;
 
-      const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
-        user_id: userId,
-        quiz_id: fallbackDailyQuizId,
+      const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+        userId,
+        quizId: fallbackDailyQuizId,
         topic: topicDefinition.id,
         score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: score === maxScore,
-        is_flagged: durationSeconds < 20,
-        completed_at: new Date().toISOString(),
+        maxScore,
+        durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+        isFlagged: Number(durationSeconds) < 20,
+        isTestMode,
       });
 
       if (attemptError) {
@@ -380,17 +313,16 @@ export async function POST(req: Request) {
         throw attemptError;
       }
 
-      const awardResult = isTestMode
-        ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
-
-      const finalPointsAwarded = awardResult.pointsAwarded;
+      const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+      const awardReason = String(submissionResult?.reason || '');
+      const todayPoints = Number(submissionResult?.today_points ?? 0);
+      const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
       const awardMessage = isTestMode
         ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
         : finalPointsAwarded > 0
-          ? 'Topic completed! 50 points added to leaderboard.'
-          : awardResult.reason === 'daily_limit_reached'
+          ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+          : awardReason === 'daily_limit_reached'
             ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
             : 'Quiz completed, but points could not be added right now.';
 
@@ -401,9 +333,9 @@ export async function POST(req: Request) {
         points: finalPointsAwarded,
         totalPossiblePoints: totalPoints,
         message: awardMessage,
-        reason: awardResult.reason,
-        todayPoints: awardResult.todayPoints,
-        dailyLimit: awardResult.dailyLimit,
+        reason: awardReason,
+        todayPoints,
+        dailyLimit,
         isTopicQuiz: true,
         attemptsToday: attemptSummary.attemptsToday,
         maxDailyAttempts: attemptSummary.maxDailyAttempts,
@@ -465,16 +397,15 @@ export async function POST(req: Request) {
       const totalPoints = 50;
       const attemptTopic = topicDefinition.id;
 
-      const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
-        user_id: userId,
-        quiz_id: fallbackDailyQuizId,
+      const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+        userId,
+        quizId: fallbackDailyQuizId,
         topic: attemptTopic,
         score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: score === maxScore,
-        is_flagged: false,
-        completed_at: new Date().toISOString(),
+        maxScore,
+        durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+        isFlagged: false,
+        isTestMode,
       });
 
       if (attemptError) {
@@ -494,17 +425,16 @@ export async function POST(req: Request) {
         throw attemptError;
       }
 
-      const awardResult = isTestMode
-        ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
-
-      const finalPointsAwarded = awardResult.pointsAwarded;
+      const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+      const awardReason = String(submissionResult?.reason || '');
+      const todayPoints = Number(submissionResult?.today_points ?? 0);
+      const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
       const awardMessage = isTestMode
         ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
         : finalPointsAwarded > 0
-          ? 'Topic completed! 50 points added to leaderboard.'
-          : awardResult.reason === 'daily_limit_reached'
+          ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+          : awardReason === 'daily_limit_reached'
             ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
             : 'Quiz completed, but points could not be added right now.';
 
@@ -515,9 +445,9 @@ export async function POST(req: Request) {
         points: finalPointsAwarded,
         totalPossiblePoints: totalPoints,
         message: awardMessage,
-        reason: awardResult.reason,
-        todayPoints: awardResult.todayPoints,
-        dailyLimit: awardResult.dailyLimit,
+        reason: awardReason,
+        todayPoints,
+        dailyLimit,
         isFallback: true,
         attemptsToday: attemptSummary.attemptsToday,
         maxDailyAttempts: attemptSummary.maxDailyAttempts,
@@ -577,7 +507,6 @@ export async function POST(req: Request) {
 
     const score = correctCount * 10;
     const maxScore = activeQuestionIds.length * 10;
-    const isPerfect = score === maxScore;
     const isFlagged = Number(durationSeconds) < 20;
 
     if (!isTestMode) {
@@ -600,21 +529,16 @@ export async function POST(req: Request) {
       return duplicateAttemptResponse();
     }
 
-    const { data: attempt, error: attemptError } = await supabaseAdmin
-      .from('quiz_attempts')
-      .insert({
-        user_id: userId,
-        quiz_id: quizId,
-        topic: attemptTopic,
-        score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: isPerfect,
-        is_flagged: isFlagged,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+      userId,
+      quizId,
+      topic: attemptTopic,
+      score,
+      maxScore,
+      durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+      isFlagged,
+      isTestMode,
+    });
 
     const totalPoints = 50;
 
@@ -635,17 +559,16 @@ export async function POST(req: Request) {
       throw attemptError;
     }
 
-    const awardResult = isTestMode
-      ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-      : await awardPointsWithDailyCap(userId, totalPoints);
-
-    const finalPointsAwarded = awardResult.pointsAwarded;
+    const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+    const awardReason = String(submissionResult?.reason || '');
+    const todayPoints = Number(submissionResult?.today_points ?? 0);
+    const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
     const attemptSummary = await getTodaysQuizAttemptSummary(userId);
     const awardMessage = isTestMode
       ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
       : finalPointsAwarded > 0
-        ? 'Topic completed! 50 points added to leaderboard.'
-        : awardResult.reason === 'daily_limit_reached'
+        ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+        : awardReason === 'daily_limit_reached'
           ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
           : 'Quiz completed, but points could not be added right now.';
 
@@ -656,10 +579,10 @@ export async function POST(req: Request) {
       points: finalPointsAwarded,
       totalPossiblePoints: totalPoints,
       message: awardMessage,
-      reason: awardResult.reason,
-      todayPoints: awardResult.todayPoints,
-      dailyLimit: awardResult.dailyLimit,
-      attemptId: attempt.id,
+      reason: awardReason,
+      todayPoints,
+      dailyLimit,
+      attemptId: submissionResult?.attempt_id ?? null,
       attemptsToday: attemptSummary.attemptsToday,
       maxDailyAttempts: attemptSummary.maxDailyAttempts,
       remainingDailyAttempts: attemptSummary.remainingDailyAttempts,

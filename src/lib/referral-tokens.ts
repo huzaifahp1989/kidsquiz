@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 const TOKEN_REWARD_PER_SHARE = 5;
 const TOKEN_REWARD_PER_JOIN = 20;

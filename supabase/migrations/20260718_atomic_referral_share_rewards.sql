@@ -2,6 +2,60 @@
 -- transaction. The API calls this function with the service role after
 -- authenticating the request.
 
+-- Lift any profile counters left behind by the previous multi-step flow. Audit
+-- rows are the lower bound; GREATEST preserves legitimate manual corrections.
+UPDATE public.referral_profiles rp
+SET tokens_earned = GREATEST(
+      rp.tokens_earned,
+      COALESCE((
+        SELECT SUM(rsr.tokens_awarded)
+        FROM public.referral_share_rewards rsr
+        WHERE rsr.user_id = rp.user_id
+      ), 0) + COALESCE((
+        SELECT SUM(re.tokens_awarded)
+        FROM public.referral_events re
+        WHERE re.referrer_user_id = rp.user_id
+      ), 0)
+    ),
+    points_earned = GREATEST(
+      rp.points_earned,
+      COALESCE((
+        SELECT SUM(rsr.points_awarded)
+        FROM public.referral_share_rewards rsr
+        WHERE rsr.user_id = rp.user_id
+      ), 0) + COALESCE((
+        SELECT SUM(re.points_awarded)
+        FROM public.referral_events re
+        WHERE re.referrer_user_id = rp.user_id
+      ), 0)
+    ),
+    shares_count = GREATEST(
+      rp.shares_count,
+      (
+        SELECT COUNT(*)::INTEGER
+        FROM public.referral_share_rewards rsr
+        WHERE rsr.user_id = rp.user_id
+      )
+    ),
+    successful_joins = GREATEST(
+      rp.successful_joins,
+      (
+        SELECT COUNT(*)::INTEGER
+        FROM public.referral_events re
+        WHERE re.referrer_user_id = rp.user_id
+      )
+    )
+WHERE EXISTS (
+  SELECT 1
+  FROM public.referral_share_rewards rsr
+  WHERE rsr.user_id = rp.user_id
+)
+OR EXISTS (
+  SELECT 1
+  FROM public.referral_events re
+  WHERE re.referrer_user_id = rp.user_id
+);
+
 CREATE OR REPLACE FUNCTION public.claim_referral_share_reward(p_user_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql

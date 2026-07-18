@@ -56,7 +56,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const awardResult = await awardPointsWithDailyCapByUserId(userId, snapshot.reward.points);
+    // Completing the missions already requires earning points today. Treat the
+    // advertised "extra" reward as a bonus so reaching the daily cap does not
+    // consume the one-time claim without awarding it.
+    const awardResult = await awardPointsWithDailyCapByUserId(userId, snapshot.reward.points, {
+      countTowardDailyLimit: false,
+    });
 
     if (!awardResult.success && awardResult.reason === 'update_failed') {
       await supabaseAdmin

@@ -46,10 +46,14 @@ export default function AdminMasjidAlAqsaCompetitionPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/admin/competitions/masjid-al-aqsa/submissions', {
-        headers: { 'x-admin-auth': 'true' },
         cache: 'no-store',
       });
       const json = await res.json();
+      if (res.status === 401) {
+        localStorage.removeItem('admin_auth');
+        router.push('/admin/login');
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || 'Failed to load submissions');
       setSubmissions(Array.isArray(json.submissions) ? json.submissions : []);
       setStats(json.stats || { total: 0, submitted: 0, reviewed: 0, approved: 0, rejected: 0 });
@@ -72,7 +76,7 @@ export default function AdminMasjidAlAqsaCompetitionPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedId]);
+  }, [router, selectedId]);
 
   useEffect(() => {
     fetchSubmissions();
@@ -105,7 +109,7 @@ export default function AdminMasjidAlAqsaCompetitionPage() {
     if (!selected) return;
     const res = await fetch(`/api/admin/competitions/masjid-al-aqsa/submissions/${selected.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-auth': 'true' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action,
         questionMarks: draft.questionMarks,
@@ -117,6 +121,11 @@ export default function AdminMasjidAlAqsaCompetitionPage() {
       }),
     });
     const json = await res.json();
+    if (res.status === 401) {
+      localStorage.removeItem('admin_auth');
+      router.push('/admin/login');
+      return;
+    }
     if (!res.ok) {
       alert(json?.error || 'Failed to save review');
       return;

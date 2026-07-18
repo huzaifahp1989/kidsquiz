@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-
-function isAdmin(req: Request) {
-  return req.headers.get('x-admin-auth') === 'true';
-}
+import { isAdminRequest } from '@/lib/admin-auth';
 
 export async function GET(req: Request) {
   try {
-    if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdminRequest(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || '';

@@ -703,7 +703,8 @@ export default function AdminPanel() {
           <Button 
             variant="outline" 
             className="bg-white/10 text-white border-white/20 hover:bg-white/20"
-            onClick={() => {
+            onClick={async () => {
+              await fetch('/api/admin/session', { method: 'DELETE' }).catch(() => null);
               localStorage.removeItem('admin_auth');
               router.push('/admin/login');
             }}

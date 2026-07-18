@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Copy, Gift, Share2, Trophy, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { APP_STORE_LINKS } from '@/lib/app-store-links';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 type ReferralPayload = {
   referralCode: string;
@@ -90,10 +91,9 @@ export default function ReferralTokenHub() {
     setClaiming(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/kids-zone/referrals/share', {
+      const res = await authenticatedFetch('/api/kids-zone/referrals/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
       });
       const data = await res.json();
       if (!res.ok) {

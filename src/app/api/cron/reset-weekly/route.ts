@@ -16,10 +16,14 @@ export async function GET(request: Request) {
     });
   }
 
-  // Verify authorization (simple key check)
+  // Vercel cron requests use this bearer token too. Do not trust the
+  // x-vercel-cron header because callers can set it themselves.
   const authHeader = request.headers.get('authorization');
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
-  if (!isVercelCron && authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
+  const cronSecret = process.env.CRON_SECRET;
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (!cronSecret || authHeader !== `Bearer ${cronSecret}`)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -29,39 +33,52 @@ export async function GET(request: Request) {
     // which runs on Fridays. This reset happens on Saturday.
 
     // 2. Call the reset RPC function
-    const { error } = await supabaseAdmin.rpc('reset_weekly_leaderboard');
+    const { error: rpcError } = await supabaseAdmin.rpc('reset_weekly_leaderboard');
+    let resetMethod: 'rpc' | 'direct-fallback' = 'rpc';
 
-    if (error) {
-      // If RPC fails (e.g. function not found), try direct update fallback
-      if (error.code === 'PGRST202') {
-         console.warn('RPC reset_weekly_leaderboard not found. Attempting direct update...');
-         
-         const { error: updateError } = await supabaseAdmin
-            .from('users_points')
-            .update({ weekly_points: 0 } as any)
-            .neq('weekly_points', 0); // Only update rows that have points
-            
-         if (updateError) throw updateError;
-         
-         // Also update users table
-         await supabaseAdmin
-            .from('users')
-            .update({ weeklypoints: 0 } as any)
-            .neq('weeklypoints', 0);
-      } else {
-        throw error;
+    if (rpcError) {
+      // Keep manual recovery available when the RPC is missing or an older,
+      // broken definition is still deployed.
+      console.warn(
+        'RPC reset_weekly_leaderboard failed. Attempting direct update fallback:',
+        rpcError.message,
+      );
+
+      const [pointsResult, usersResult] = await Promise.all([
+        supabaseAdmin
+          .from('users_points')
+          .update({ weekly_points: 0 })
+          .or('weekly_points.neq.0,weekly_points.is.null'),
+        supabaseAdmin
+          .from('users')
+          .update({ weeklypoints: 0 })
+          .or('weeklypoints.neq.0,weeklypoints.is.null'),
+      ]);
+
+      if (pointsResult.error || usersResult.error) {
+        const fallbackMessages = [
+          pointsResult.error && `users_points: ${pointsResult.error.message}`,
+          usersResult.error && `users: ${usersResult.error.message}`,
+        ].filter(Boolean);
+
+        throw new Error(
+          `Weekly reset RPC failed (${rpcError.message}); direct fallback failed (${fallbackMessages.join('; ')})`,
+        );
       }
+
+      resetMethod = 'direct-fallback';
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Weekly leaderboard reset successfully' 
+    return NextResponse.json({
+      success: true,
+      message: 'Weekly leaderboard reset successfully',
+      method: resetMethod,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Reset error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown reset error',
     }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Gift, Sparkles, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -69,51 +69,81 @@ function getProgressPercent(progress: number, target: number) {
 }
 
 export default function DailyMissions() {
-  const { user, refreshProfile, updateLocalProfile } = useAuth();
+  const { user, profile, refreshProfile, updateLocalProfile } = useAuth();
   const [payload, setPayload] = useState<MissionPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [claimMessage, setClaimMessage] = useState<string | null>(null);
+  const loadedUserId = useRef<string | null>(null);
+  const latestRequestId = useRef(0);
 
-  useEffect(() => {
+  const loadMissions = useCallback(async (options?: { signal?: AbortSignal; showLoading?: boolean }) => {
+    const requestId = ++latestRequestId.current;
+
     if (!user?.id) {
+      loadedUserId.current = null;
       setPayload(null);
       setLoading(false);
       return;
     }
 
-    let active = true;
-
-    const loadMissions = async () => {
+    if (options?.showLoading) {
       setLoading(true);
-      try {
-        const res = await fetch(`/api/kids-zone/daily-missions?userId=${user.id}`, {
-          cache: 'no-store',
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.error || 'Failed to load daily missions');
-        }
-        if (active) {
-          setPayload(data);
-        }
-      } catch {
-        if (active) {
-          setPayload(null);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+    }
+
+    try {
+      const res = await fetch(`/api/kids-zone/daily-missions?userId=${user.id}`, {
+        cache: 'no-store',
+        signal: options?.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load daily missions');
+      }
+      if (!options?.signal?.aborted && requestId === latestRequestId.current) {
+        setPayload(data);
+      }
+    } catch {
+      if (!options?.signal?.aborted && options?.showLoading && requestId === latestRequestId.current) {
+        setPayload(null);
+      }
+    } finally {
+      if (!options?.signal?.aborted && requestId === latestRequestId.current) {
+        loadedUserId.current = user.id;
+        setLoading(false);
+      }
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadMissions({
+      signal: controller.signal,
+      showLoading: loadedUserId.current !== (user?.id ?? null),
+    });
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadMissions, profile?.todayPoints, user?.id]);
+
+  useEffect(() => {
+    const refreshMissions = () => {
+      void loadMissions();
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshMissions();
       }
     };
 
-    loadMissions();
-
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('pageshow', refreshMissions);
     return () => {
-      active = false;
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('pageshow', refreshMissions);
     };
-  }, [user?.id]);
+  }, [loadMissions]);
 
   const claimBonus = async () => {
     if (!user?.id || !payload?.reward.available || claiming) {

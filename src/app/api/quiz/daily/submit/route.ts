@@ -2,10 +2,16 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStaticQuiz } from '@/lib/quiz-generator';
 import { quizzes } from '@/data/quizzes';
-import { filterQuestionsByTopic, getTopicQuizQuestions } from '@/lib/quiz-topics';
+import {
+  filterQuestionsByTopic,
+  getTopicById,
+  getTopicQuizQuestions,
+  getWeeklyTopicSeed,
+} from '@/lib/quiz-topics';
 import { isTestModeUserId } from '@/lib/test-mode-server';
 
 const MAX_DAILY_QUIZ_ATTEMPTS = 2;
+const TOPIC_QUIZ_SIZE = 5;
 
 function getUtcDayWindow() {
   const now = new Date();
@@ -120,92 +126,53 @@ async function ensureFallbackDailyQuizId(date: string, questionIds: string[]): P
   return reread.id;
 }
 
-async function awardPointsWithDailyCap(userId: string, totalPoints: number) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const dailyLimit = 100;
-  const weeklyLimit = 400;
-
-  let finalPointsAwarded = 0;
-  let reason: string | null = null;
-  let currentTodayPoints = 0;
-
-  const { data: userPointsRow, error: pointsFetchError } = await supabaseAdmin
-    .from('users_points')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (!pointsFetchError && userPointsRow) {
-    const isNewDay = userPointsRow.last_earned_date !== todayStr;
-    currentTodayPoints = isNewDay ? 0 : (userPointsRow.today_points || 0);
-
-    let pointsToAward = totalPoints;
-    if (currentTodayPoints + pointsToAward > dailyLimit) {
-      pointsToAward = Math.max(0, dailyLimit - currentTodayPoints);
-    }
-    pointsToAward = Math.max(0, Math.min(pointsToAward, weeklyLimit - Number(userPointsRow.weekly_points || 0)));
-
-    if (pointsToAward > 0) {
-      const newTotal = (userPointsRow.total_points || 0) + pointsToAward;
-      const newWeekly = Math.min(weeklyLimit, (userPointsRow.weekly_points || 0) + pointsToAward);
-      const newMonthly = (userPointsRow.monthly_points || 0) + pointsToAward;
-      const newToday = currentTodayPoints + pointsToAward;
-
-      const { error: updateError } = await supabaseAdmin
-        .from('users_points')
-        .update({
-          total_points: newTotal,
-          weekly_points: newWeekly,
-          monthly_points: newMonthly,
-          today_points: newToday,
-          last_earned_date: todayStr,
-        })
-        .eq('user_id', userId);
-
-      if (!updateError) {
-        finalPointsAwarded = pointsToAward;
-        await supabaseAdmin
-          .from('users')
-          .update({ points: newTotal, weeklypoints: newWeekly, monthlypoints: newMonthly })
-          .eq('uid', userId);
-      } else {
-        console.error('Failed to update points:', updateError);
-        reason = 'update_failed';
-      }
-    } else {
-      reason = 'daily_limit_reached';
-    }
-  } else if (!userPointsRow) {
-    const pointsToAward = Math.min(totalPoints, dailyLimit, weeklyLimit);
-    const { error: insertError } = await supabaseAdmin
-      .from('users_points')
-      .insert({
-        user_id: userId,
-        total_points: pointsToAward,
-        weekly_points: pointsToAward,
-        monthly_points: pointsToAward,
-        today_points: pointsToAward,
-        last_earned_date: todayStr,
-      });
-
-    if (!insertError) {
-      finalPointsAwarded = pointsToAward;
-      await supabaseAdmin
-        .from('users')
-        .update({ points: pointsToAward, weeklypoints: pointsToAward, monthlypoints: pointsToAward })
-        .eq('uid', userId);
-    } else {
-      console.error('Failed to insert points:', insertError);
-      reason = 'insert_failed';
-    }
+function hasAnswersForEveryQuestion(answers: unknown, questionIds: string[]): answers is Record<string, unknown> {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return false;
   }
 
-  return {
-    pointsAwarded: finalPointsAwarded,
-    reason,
-    todayPoints: currentTodayPoints,
-    dailyLimit,
-  };
+  const answerRecord = answers as Record<string, unknown>;
+  return questionIds.every((questionId) => {
+    if (!Object.prototype.hasOwnProperty.call(answerRecord, questionId)) {
+      return false;
+    }
+
+    const answer = answerRecord[questionId];
+    return typeof answer === 'number' && Number.isInteger(answer) && answer >= 0;
+  });
+}
+
+function duplicateAttemptResponse() {
+  return NextResponse.json(
+    { error: 'You have already attempted this topic quiz.' },
+    { status: 409 }
+  );
+}
+
+function isDailyAttemptLimitError(error: { message?: string } | null): boolean {
+  return Boolean(error?.message?.includes('daily_quiz_attempt_limit_reached'));
+}
+
+async function submitQuizAttemptAndAward(params: {
+  userId: string;
+  quizId: string;
+  topic: string;
+  score: number;
+  maxScore: number;
+  durationSeconds: number | null;
+  isFlagged: boolean;
+  isTestMode: boolean;
+}) {
+  return supabaseAdmin.rpc('submit_daily_topic_quiz_attempt', {
+    p_user_id: params.userId,
+    p_quiz_id: params.quizId,
+    p_topic: params.topic,
+    p_score: params.score,
+    p_max_score: params.maxScore,
+    p_duration_seconds: params.durationSeconds,
+    p_is_flagged: params.isFlagged,
+    p_is_test_mode: params.isTestMode,
+  });
 }
 
 function successNoPoints(score: number, maxScore: number, totalPossiblePoints: number, flags?: Record<string, unknown>) {
@@ -226,9 +193,9 @@ function successNoPoints(score: number, maxScore: number, totalPossiblePoints: n
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userId, quizId, answers, durationSeconds, topic, questionIds: submittedQuestionIds } = body;
+    const { userId, quizId, answers, durationSeconds, topic } = body;
 
-    if (!userId || !quizId || !answers) {
+    if (!userId || typeof quizId !== 'string' || !answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -260,25 +227,39 @@ export async function POST(req: Request) {
     }
 
     if (quizId.startsWith('topic-')) {
-      const parsed = String(quizId).split('-');
-      const topicFromId = parsed.length >= 3 ? parsed[1] : topic;
-      const weekSeedFromId = parsed.length >= 4 ? parsed.slice(2).join('-') : new Date().toISOString().split('T')[0];
-      const todayDate = new Date().toISOString().split('T')[0];
+      const topicQuizMatch = /^topic-([a-z]+)-(\d{4}-\d{2}-\d{2})$/.exec(quizId);
+      const topicDefinition = getTopicById(topicQuizMatch?.[1]);
+      const weekSeedFromId = topicQuizMatch?.[2];
+      const currentWeekSeed = getWeeklyTopicSeed();
 
-      const topicQuestions = getTopicQuizQuestions((quizzes as any[]).filter((q) => q && q.id), topicFromId, weekSeedFromId, 5);
-      if (!topicQuestions.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      if (!topicDefinition || weekSeedFromId !== currentWeekSeed) {
+        return NextResponse.json(
+          { error: 'This topic quiz is invalid or is no longer current.' },
+          { status: 400 }
+        );
       }
 
-      const allowedQuestionIds = new Set(
-        Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-          ? submittedQuestionIds.map((id: string) => String(id))
-          : topicQuestions.map((q: any) => String(q.id))
-      );
+      const todayDate = new Date().toISOString().split('T')[0];
 
-      const activeQuestions = topicQuestions.filter((q: any) => allowedQuestionIds.has(String(q.id)));
-      if (!activeQuestions.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      const topicQuestions = getTopicQuizQuestions(
+        (quizzes as any[]).filter((q) => q && q.id),
+        topicDefinition.id,
+        currentWeekSeed,
+        TOPIC_QUIZ_SIZE
+      );
+      if (topicQuestions.length !== TOPIC_QUIZ_SIZE) {
+        return NextResponse.json(
+          { error: 'A complete five-question quiz is not available for this topic.' },
+          { status: 400 }
+        );
+      }
+
+      const expectedQuestionIds = topicQuestions.map((question: any) => String(question.id));
+      if (!hasAnswersForEveryQuestion(answers, expectedQuestionIds)) {
+        return NextResponse.json(
+          { error: 'Please answer all five questions before submitting this topic.' },
+          { status: 400 }
+        );
       }
 
       if (!isTestMode) {
@@ -290,51 +271,58 @@ export async function POST(req: Request) {
 
       const fallbackDailyQuizId = await ensureFallbackDailyQuizId(
         todayDate,
-        activeQuestions.map((q: any) => String(q.id))
+        expectedQuestionIds
       );
 
       let correctCount = 0;
-      const questionMap = new Map(activeQuestions.map((q: any) => [String(q.id), q]));
+      const questionMap = new Map(topicQuestions.map((q: any) => [String(q.id), q]));
       for (const [qId, ansIdx] of Object.entries(answers)) {
-        if (!allowedQuestionIds.has(String(qId))) continue;
         const q = questionMap.get(String(qId));
         if (q && Number(q.correctAnswer) === Number(ansIdx)) correctCount++;
       }
 
       const score = correctCount * 10;
-      const maxScore = activeQuestions.length * 10;
-      const isCompletedTopic = activeQuestions.every((q: any) => Object.prototype.hasOwnProperty.call(answers, String(q.id)));
-      const totalPoints = isCompletedTopic ? 50 : 0;
+      const maxScore = topicQuestions.length * 10;
+      const totalPoints = 50;
 
-      const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
-        user_id: userId,
-        quiz_id: fallbackDailyQuizId,
+      const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+        userId,
+        quizId: fallbackDailyQuizId,
+        topic: topicDefinition.id,
         score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: score === maxScore,
-        is_flagged: durationSeconds < 20,
-        completed_at: new Date().toISOString(),
+        maxScore,
+        durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+        isFlagged: Number(durationSeconds) < 20,
+        isTestMode,
       });
 
       if (attemptError) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isTopicQuiz: true }));
         }
+        if (isDailyAttemptLimitError(attemptError)) {
+          if (isTestMode) {
+            return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isTopicQuiz: true }));
+          }
+          const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+          if (limitResponse) return limitResponse;
+        }
+        if (attemptError.code === '23505') {
+          return duplicateAttemptResponse();
+        }
         throw attemptError;
       }
 
-      const awardResult = isTestMode
-        ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
-
-      const finalPointsAwarded = awardResult.pointsAwarded;
+      const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+      const awardReason = String(submissionResult?.reason || '');
+      const todayPoints = Number(submissionResult?.today_points ?? 0);
+      const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
       const awardMessage = isTestMode
         ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
         : finalPointsAwarded > 0
-          ? 'Topic completed! 50 points added to leaderboard.'
-          : awardResult.reason === 'daily_limit_reached'
+          ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+          : awardReason === 'daily_limit_reached'
             ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
             : 'Quiz completed, but points could not be added right now.';
 
@@ -345,9 +333,9 @@ export async function POST(req: Request) {
         points: finalPointsAwarded,
         totalPossiblePoints: totalPoints,
         message: awardMessage,
-        reason: awardResult.reason,
-        todayPoints: awardResult.todayPoints,
-        dailyLimit: awardResult.dailyLimit,
+        reason: awardReason,
+        todayPoints,
+        dailyLimit,
         isTopicQuiz: true,
         attemptsToday: attemptSummary.attemptsToday,
         maxDailyAttempts: attemptSummary.maxDailyAttempts,
@@ -365,69 +353,88 @@ export async function POST(req: Request) {
       }
 
       const date = quizId.replace('fallback-', '');
+      const todayDate = new Date().toISOString().split('T')[0];
+      const topicDefinition = getTopicById(topic);
+      if (date !== todayDate || !topicDefinition) {
+        return NextResponse.json(
+          { error: 'This topic quiz is invalid or is no longer current.' },
+          { status: 400 }
+        );
+      }
+
       const staticQuiz = getStaticQuiz(date);
       const questions = staticQuiz.questions;
-      const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
-      const activeQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
+      const activeQuestions = filterQuestionsByTopic(questions, topicDefinition.id);
+      if (activeQuestions.length !== TOPIC_QUIZ_SIZE) {
+        return NextResponse.json(
+          { error: 'Please use the current five-question topic quiz.' },
+          { status: 400 }
+        );
+      }
 
-      const allowedQuestionIds = new Set(
-        Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-          ? submittedQuestionIds.map((id: string) => String(id))
-          : activeQuestions.map((q: any) => String(q.id))
-      );
-
-      const scoredQuestions = activeQuestions.filter((q: any) => allowedQuestionIds.has(String(q.id)));
-      if (!scoredQuestions.length) {
-        return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+      const expectedQuestionIds = activeQuestions.map((question: any) => String(question.id));
+      if (!hasAnswersForEveryQuestion(answers, expectedQuestionIds)) {
+        return NextResponse.json(
+          { error: 'Please answer every question before submitting this quiz.' },
+          { status: 400 }
+        );
       }
 
       const fallbackDailyQuizId = await ensureFallbackDailyQuizId(
         date,
-        scoredQuestions.map((q: any) => String(q.id))
+        expectedQuestionIds
       );
 
       let correctCount = 0;
-      const questionMap = new Map(scoredQuestions.map((q: any) => [String(q.id), q]));
+      const questionMap = new Map(activeQuestions.map((q: any) => [String(q.id), q]));
       for (const [qId, ansIdx] of Object.entries(answers)) {
-        if (!allowedQuestionIds.has(String(qId))) continue;
         const q = questionMap.get(String(qId));
         if (q && Number(q.correctAnswer) === Number(ansIdx)) correctCount++;
       }
 
       const score = correctCount * 10;
-      const maxScore = scoredQuestions.length * 10;
-      const isCompletedTopic = scoredQuestions.every((q: any) => Object.prototype.hasOwnProperty.call(answers, String(q.id)));
-      const totalPoints = isCompletedTopic ? 50 : 0;
+      const maxScore = activeQuestions.length * 10;
+      const totalPoints = 50;
+      const attemptTopic = topicDefinition.id;
 
-      const { error: attemptError } = await supabaseAdmin.from('quiz_attempts').insert({
-        user_id: userId,
-        quiz_id: fallbackDailyQuizId,
+      const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+        userId,
+        quizId: fallbackDailyQuizId,
+        topic: attemptTopic,
         score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: score === maxScore,
-        is_flagged: false,
-        completed_at: new Date().toISOString(),
+        maxScore,
+        durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+        isFlagged: false,
+        isTestMode,
       });
 
       if (attemptError) {
         if (isTestMode && attemptError.code === '23505') {
           return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isFallback: true }));
         }
+        if (isDailyAttemptLimitError(attemptError)) {
+          if (isTestMode) {
+            return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { isFallback: true }));
+          }
+          const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+          if (limitResponse) return limitResponse;
+        }
+        if (attemptError.code === '23505') {
+          return duplicateAttemptResponse();
+        }
         throw attemptError;
       }
 
-      const awardResult = isTestMode
-        ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-        : await awardPointsWithDailyCap(userId, totalPoints);
-
-      const finalPointsAwarded = awardResult.pointsAwarded;
+      const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+      const awardReason = String(submissionResult?.reason || '');
+      const todayPoints = Number(submissionResult?.today_points ?? 0);
+      const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
       const attemptSummary = await getTodaysQuizAttemptSummary(userId);
       const awardMessage = isTestMode
         ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
         : finalPointsAwarded > 0
-          ? 'Topic completed! 50 points added to leaderboard.'
-          : awardResult.reason === 'daily_limit_reached'
+          ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+          : awardReason === 'daily_limit_reached'
             ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
             : 'Quiz completed, but points could not be added right now.';
 
@@ -438,9 +445,9 @@ export async function POST(req: Request) {
         points: finalPointsAwarded,
         totalPossiblePoints: totalPoints,
         message: awardMessage,
-        reason: awardResult.reason,
-        todayPoints: awardResult.todayPoints,
-        dailyLimit: awardResult.dailyLimit,
+        reason: awardReason,
+        todayPoints,
+        dailyLimit,
         isFallback: true,
         attemptsToday: attemptSummary.attemptsToday,
         maxDailyAttempts: attemptSummary.maxDailyAttempts,
@@ -451,12 +458,18 @@ export async function POST(req: Request) {
 
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from('daily_quizzes')
-      .select('question_ids')
+      .select('question_ids, quiz_date')
       .eq('id', quizId)
       .single();
 
-    if (quizError || !quiz) {
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (quizError || !quiz || quiz.quiz_date !== todayDate) {
       return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
+    }
+
+    const topicDefinition = getTopicById(topic);
+    if (!topicDefinition) {
+      return NextResponse.json({ error: 'A valid quiz topic is required.' }, { status: 400 });
     }
 
     const questionIds = quiz.question_ids as string[];
@@ -469,32 +482,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Questions not found' }, { status: 500 });
     }
 
-    const topicScopedQuestions = filterQuestionsByTopic(questions, topic);
-    const candidateQuestions = topicScopedQuestions.length > 0 ? topicScopedQuestions : questions;
-    const allowedQuestionIds = new Set(
-      Array.isArray(submittedQuestionIds) && submittedQuestionIds.length > 0
-        ? submittedQuestionIds.map((id: string) => String(id))
-        : candidateQuestions.map((q) => String(q.id))
-    );
+    const candidateQuestions = filterQuestionsByTopic(questions, topicDefinition.id);
+    if (candidateQuestions.length !== TOPIC_QUIZ_SIZE) {
+      return NextResponse.json(
+        { error: 'Please use the current five-question topic quiz.' },
+        { status: 400 }
+      );
+    }
 
-    const activeQuestionIds = candidateQuestions
-      .map((q) => String(q.id))
-      .filter((id) => allowedQuestionIds.has(id));
+    const activeQuestionIds = candidateQuestions.map((question) => String(question.id));
 
-    if (!activeQuestionIds.length) {
-      return NextResponse.json({ error: 'No questions available for this topic.' }, { status: 400 });
+    if (!hasAnswersForEveryQuestion(answers, activeQuestionIds)) {
+      return NextResponse.json(
+        { error: 'Please answer every question before submitting this quiz.' },
+        { status: 400 }
+      );
     }
 
     let correctCount = 0;
-    const questionMap = new Map(questions.map((q) => [String(q.id), q.correct_answer_index]));
+    const questionMap = new Map(candidateQuestions.map((q) => [String(q.id), q.correct_answer_index]));
     for (const [qId, ansIdx] of Object.entries(answers)) {
-      if (!allowedQuestionIds.has(String(qId))) continue;
       if (questionMap.get(String(qId)) === Number(ansIdx)) correctCount++;
     }
 
     const score = correctCount * 10;
     const maxScore = activeQuestionIds.length * 10;
-    const isPerfect = score === maxScore;
     const isFlagged = Number(durationSeconds) < 20;
 
     if (!isTestMode) {
@@ -504,53 +516,59 @@ export async function POST(req: Request) {
       }
     }
 
+    const attemptTopic = topicDefinition.id;
     const { data: existingAttempt } = await supabaseAdmin
       .from('quiz_attempts')
       .select('id')
       .eq('user_id', userId)
       .eq('quiz_id', quizId)
+      .eq('topic', attemptTopic)
       .maybeSingle();
 
     if (!isTestMode && existingAttempt) {
-      return NextResponse.json({ error: 'You have already attempted this quiz.' }, { status: 400 });
+      return duplicateAttemptResponse();
     }
 
-    const { data: attempt, error: attemptError } = await supabaseAdmin
-      .from('quiz_attempts')
-      .insert({
-        user_id: userId,
-        quiz_id: quizId,
-        score,
-        max_score: maxScore,
-        duration_seconds: durationSeconds,
-        is_perfect_score: isPerfect,
-        is_flagged: isFlagged,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data: submissionResult, error: attemptError } = await submitQuizAttemptAndAward({
+      userId,
+      quizId,
+      topic: attemptTopic,
+      score,
+      maxScore,
+      durationSeconds: Number.isFinite(Number(durationSeconds)) ? Number(durationSeconds) : null,
+      isFlagged,
+      isTestMode,
+    });
 
-    const isCompletedTopic = activeQuestionIds.every((id) => Object.prototype.hasOwnProperty.call(answers, id));
-    const totalPoints = isCompletedTopic ? 50 : 0;
+    const totalPoints = 50;
 
     if (attemptError) {
       if (isTestMode && attemptError.code === '23505') {
         return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { attemptId: null }));
       }
+      if (isDailyAttemptLimitError(attemptError)) {
+        if (isTestMode) {
+          return NextResponse.json(successNoPoints(score, maxScore, totalPoints, { attemptId: null }));
+        }
+        const limitResponse = await enforceDailyQuizAttemptLimit(userId);
+        if (limitResponse) return limitResponse;
+      }
+      if (attemptError.code === '23505') {
+        return duplicateAttemptResponse();
+      }
       throw attemptError;
     }
 
-    const awardResult = isTestMode
-      ? { pointsAwarded: 0, reason: 'test_mode', todayPoints: 0, dailyLimit: 100 }
-      : await awardPointsWithDailyCap(userId, totalPoints);
-
-    const finalPointsAwarded = awardResult.pointsAwarded;
+    const finalPointsAwarded = Number(submissionResult?.points_awarded ?? 0);
+    const awardReason = String(submissionResult?.reason || '');
+    const todayPoints = Number(submissionResult?.today_points ?? 0);
+    const dailyLimit = Number(submissionResult?.daily_limit ?? 100);
     const attemptSummary = await getTodaysQuizAttemptSummary(userId);
     const awardMessage = isTestMode
       ? 'Test mode active. Quiz recorded, but no leaderboard points were added.'
       : finalPointsAwarded > 0
-        ? 'Topic completed! 50 points added to leaderboard.'
-        : awardResult.reason === 'daily_limit_reached'
+        ? `Topic completed! ${finalPointsAwarded} points added to leaderboard.`
+        : awardReason === 'daily_limit_reached'
           ? 'You have reached today\'s 100-point limit. Quiz completed, but no points were added.'
           : 'Quiz completed, but points could not be added right now.';
 
@@ -561,10 +579,10 @@ export async function POST(req: Request) {
       points: finalPointsAwarded,
       totalPossiblePoints: totalPoints,
       message: awardMessage,
-      reason: awardResult.reason,
-      todayPoints: awardResult.todayPoints,
-      dailyLimit: awardResult.dailyLimit,
-      attemptId: attempt.id,
+      reason: awardReason,
+      todayPoints,
+      dailyLimit,
+      attemptId: submissionResult?.attempt_id ?? null,
       attemptsToday: attemptSummary.attemptsToday,
       maxDailyAttempts: attemptSummary.maxDailyAttempts,
       remainingDailyAttempts: attemptSummary.remainingDailyAttempts,

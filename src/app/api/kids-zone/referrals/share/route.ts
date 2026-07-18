@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
 import { claimShareReward } from '@/lib/referral-tokens';
+import { getAuthenticatedRequestUser } from '@/lib/request-auth';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const userId = body?.userId as string | undefined;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    const authUser = await getAuthenticatedRequestUser(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const result = await claimShareReward(userId);
+    const result = await claimShareReward(authUser.id);
     if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json(
+        { error: result.message, setupRequired: result.setupRequired === true },
+        { status: result.setupRequired ? 503 : 400 }
+      );
     }
 
     return NextResponse.json(result);

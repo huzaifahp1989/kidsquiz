@@ -1,6 +1,5 @@
 import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { awardPointsWithDailyCapByUserId } from '@/lib/server-points';
 
 const TOKEN_REWARD_PER_SHARE = 5;
 const TOKEN_REWARD_PER_JOIN = 20;
@@ -43,6 +42,7 @@ export type ShareRewardResult = {
   tokensAwarded: number;
   pointsAwarded: number;
   message: string;
+  setupRequired?: boolean;
   totals?: {
     totalPoints: number;
     weeklyPoints: number;
@@ -173,39 +173,27 @@ export async function getReferralSnapshot(userId: string, appUrl: string): Promi
 export async function claimShareReward(userId: string): Promise<ShareRewardResult> {
   await ensureReferralProfile(userId);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabaseAdmin.rpc('claim_referral_share_reward', {
+    p_user_id: userId,
+  });
 
-  const { data: inserted, error: insertErr } = await supabaseAdmin
-    .from('referral_share_rewards')
-    .insert({
-      user_id: userId,
-      reward_date: today,
-      tokens_awarded: TOKEN_REWARD_PER_SHARE,
-      points_awarded: 0,
-    })
-    .select('id')
-    .maybeSingle();
-
-  if (insertErr) {
-    if (insertErr.code === '23505') {
-      return {
-        success: true,
-        alreadyClaimedToday: true,
-        tokensAwarded: 0,
-        pointsAwarded: 0,
-        message: 'Share reward already claimed today. Come back tomorrow for more tokens.',
-      };
-    }
+  if (error) {
+    const setupRequired = error.code === '42883'
+      || error.code === 'PGRST202'
+      || Boolean(error.message?.includes('claim_referral_share_reward'));
     return {
       success: false,
       alreadyClaimedToday: false,
       tokensAwarded: 0,
       pointsAwarded: 0,
-      message: insertErr.message,
+      setupRequired,
+      message: setupRequired
+        ? 'Referral share rewards are not set up yet.'
+        : error.message,
     };
   }
 
-  if (!inserted) {
+  if (!data || data.success !== true) {
     return {
       success: false,
       alreadyClaimedToday: false,
@@ -215,68 +203,27 @@ export async function claimShareReward(userId: string): Promise<ShareRewardResul
     };
   }
 
-  const pointAwardResult = await awardPointsWithDailyCapByUserId(userId, POINT_REWARD_PER_SHARE, {
-    countTowardDailyLimit: false,
-    successMessage: `Referral share reward claimed. +${POINT_REWARD_PER_SHARE} bonus points added.`,
-  });
-  const actualPointsAwarded = Number(pointAwardResult.pointsAwarded || 0);
-
-  await supabaseAdmin
-    .from('referral_share_rewards')
-    .update({ points_awarded: actualPointsAwarded })
-    .eq('id', inserted.id);
-
-  const { data: profile, error: profileErr } = await supabaseAdmin
-    .from('referral_profiles')
-    .select('tokens_earned, shares_count, points_earned')
-    .eq('user_id', userId)
-    .single();
-
-  if (profileErr) {
-    return {
-      success: false,
-      alreadyClaimedToday: false,
-      tokensAwarded: 0,
-      pointsAwarded: 0,
-      message: profileErr.message,
-    };
-  }
-
-  const { error: updateProfileErr } = await supabaseAdmin
-    .from('referral_profiles')
-    .update({
-      tokens_earned: Number(profile.tokens_earned || 0) + TOKEN_REWARD_PER_SHARE,
-      shares_count: Number(profile.shares_count || 0) + 1,
-      points_earned: Number(profile.points_earned || 0) + actualPointsAwarded,
-      last_share_reward_date: today,
-    })
-    .eq('user_id', userId);
-
-  if (updateProfileErr) {
-    return {
-      success: false,
-      alreadyClaimedToday: false,
-      tokensAwarded: 0,
-      pointsAwarded: 0,
-      message: updateProfileErr.message,
-    };
-  }
+  const alreadyClaimedToday = data.already_claimed_today === true;
+  const tokensAwarded = Number(data.tokens_awarded || 0);
+  const pointsAwarded = Number(data.points_awarded || 0);
 
   return {
     success: true,
-    alreadyClaimedToday: false,
-    tokensAwarded: TOKEN_REWARD_PER_SHARE,
-    pointsAwarded: actualPointsAwarded,
-    message: actualPointsAwarded > 0
-      ? `Shared successfully. You earned +${TOKEN_REWARD_PER_SHARE} tokens and +${actualPointsAwarded} points.`
-      : `Shared successfully. You earned +${TOKEN_REWARD_PER_SHARE} tokens.`,
+    alreadyClaimedToday,
+    tokensAwarded,
+    pointsAwarded,
+    message: alreadyClaimedToday
+      ? 'Share reward already claimed today. Come back tomorrow for more tokens.'
+      : pointsAwarded > 0
+        ? `Shared successfully. You earned +${tokensAwarded} tokens and +${pointsAwarded} points.`
+        : `Shared successfully. You earned +${tokensAwarded} tokens.`,
     totals: {
-      totalPoints: pointAwardResult.totalPoints,
-      weeklyPoints: pointAwardResult.weeklyPoints,
-      monthlyPoints: pointAwardResult.monthlyPoints,
-      todayPoints: pointAwardResult.todayPoints,
-      badges: pointAwardResult.badges,
-      level: pointAwardResult.level,
+      totalPoints: Number(data.total_points || 0),
+      weeklyPoints: Number(data.weekly_points || 0),
+      monthlyPoints: Number(data.monthly_points || 0),
+      todayPoints: Number(data.today_points || 0),
+      badges: Number(data.badges || 0),
+      level: Number(data.level || 1),
     },
   };
 }
